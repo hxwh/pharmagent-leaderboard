@@ -27,7 +27,8 @@ def extract_leaderboard_metrics(result_data: Dict[str, Any], subtask: str) -> Di
         # Subtask 1: Medical Record Tasks
         # Expected metrics: score, success_rate
         score = result_data.get("score", 0.0)
-        success_rate = result_data.get("report", {}).get("success_rate", 0.0)
+        report = result_data.get("report") or {}
+        success_rate = report.get("success_rate", 0.0) if isinstance(report, dict) else 0.0
 
         return {
             "score": float(score),
@@ -59,13 +60,41 @@ def transform_agentbeats_results(agentbeats_results: Dict[str, Any]) -> Dict[str
     Returns:
         Leaderboard-compatible results format
     """
+    # Extract participant_id from participants field if available
+    participant_id = None
+    if "participants" in agentbeats_results:
+        participants = agentbeats_results["participants"]
+        # Get the first participant's ID (usually medical_agent)
+        if isinstance(participants, dict):
+            # Extract the UUID from the first participant
+            participant_id = list(participants.values())[0] if participants else None
+
     # Handle different possible input formats from AgentBeats client
 
     # Case 1: Direct results format (if client outputs structured JSON)
     if "subtask" in agentbeats_results and "participant_id" in agentbeats_results:
-        return agentbeats_results  # Already in correct format
+        result = agentbeats_results.copy()
+        if participant_id and not result.get("participant_id"):
+            result["participant_id"] = participant_id
+        return result
 
-    # Case 2: A2A artifacts format (extract from artifacts)
+    # Case 2: Results array format (AgentBeats client output)
+    if "results" in agentbeats_results and isinstance(agentbeats_results["results"], list):
+        # Process first result in the array
+        if agentbeats_results["results"]:
+            result_item = agentbeats_results["results"][0]
+            # Check if result_item has result_data directly
+            if "result_data" in result_item:
+                if participant_id:
+                    result_item["participant_id"] = participant_id
+                return transform_pharmagent_results(result_item)
+            # Or if it's nested differently
+            elif isinstance(result_item, dict):
+                if participant_id:
+                    result_item["participant_id"] = participant_id
+                return transform_pharmagent_results(result_item)
+
+    # Case 3: A2A artifacts format (extract from artifacts)
     if "artifacts" in agentbeats_results:
         for artifact in agentbeats_results["artifacts"]:
             if artifact.get("name") == "Evaluation Result":
@@ -74,14 +103,21 @@ def transform_agentbeats_results(agentbeats_results: Dict[str, Any]) -> Dict[str
                     if part.get("kind") == "data":
                         data = part.get("data", {})
                         if data:
+                            # Add participant_id if extracted
+                            if participant_id:
+                                data["participant_id"] = participant_id
                             # This should contain the detailed PharmAgent results
                             return transform_pharmagent_results(data)
 
-    # Case 3: Raw PharmAgent format (fallback for testing)
+    # Case 4: Raw PharmAgent format (fallback for testing)
     if "result_data" in agentbeats_results:
+        if participant_id:
+            agentbeats_results["participant_id"] = participant_id
         return transform_pharmagent_results(agentbeats_results)
 
     # Default: assume it's already in the right format
+    if participant_id and "participant_id" not in agentbeats_results:
+        agentbeats_results["participant_id"] = participant_id
     return agentbeats_results
 
 
@@ -118,26 +154,53 @@ def transform_pharmagent_results(pharmagent_results: Dict[str, Any]) -> Dict[str
     Returns:
         AgentBeats-compatible results format
     """
-    # Extract subtask from config or result data
+    # Extract subtask from config, result_data, or infer from task_id
     config = pharmagent_results.get("config", {})
-    subtask = config.get("subtask", "subtask1")
-
-    # Get the detailed result data
     result_data = pharmagent_results.get("result_data", {})
+    
+    # Try to get subtask from multiple sources (priority: result_data > config > infer from task_id > default)
+    subtask = result_data.get("subtask") or config.get("subtask")
+    
+    # If still missing, infer from task_id (old image compatibility)
+    if not subtask:
+        task_id = result_data.get("task_id") or ""
+        task_id_str = str(task_id).lower() if task_id else ""
+        if task_id_str.startswith("subtask2") or "pokemon" in task_id_str:
+            subtask = "subtask2"
+        elif task_id_str.startswith("task") or "batch" in task_id_str:
+            subtask = "subtask1"
+        else:
+            subtask = "subtask1"  # Default fallback
 
     # Extract leaderboard-compatible metrics
     metrics = extract_leaderboard_metrics(result_data, subtask)
 
-    # Get participant ID from scenario or results
+    # Get participant ID from results or scenario
     participant_id = pharmagent_results.get("participant_id")
     if not participant_id or participant_id == "unknown":
         participant_id = get_participant_id_from_scenario()
+
+    # Extract timestamp (prefer ISO format from result_data or top level)
+    timestamp = (
+        result_data.get("timestamp") or 
+        pharmagent_results.get("timestamp") or 
+        ""
+    )
+    
+    # Ensure timestamp is in ISO format (DuckDB expects consistent format)
+    if timestamp and not timestamp.endswith("Z") and "T" in timestamp:
+        # Already ISO format, keep as is
+        pass
+    elif not timestamp:
+        # Fallback: use current time if missing
+        from datetime import datetime
+        timestamp = datetime.now().isoformat()
 
     # Build AgentBeats-compatible results
     leaderboard_results = {
         "subtask": subtask,
         "participant_id": participant_id,
-        "timestamp": pharmagent_results.get("timestamp", ""),
+        "timestamp": timestamp,
         "config": config,
         **metrics  # Add the scoring metrics at top level
     }
