@@ -73,7 +73,7 @@
 
 ### Stage 4: DuckDB Query Execution
 
-**Note:** DuckDB queries AgentBeats client output with `CROSS JOIN UNNEST(results.results)` to flatten the results array.
+**Note:** DuckDB queries the transformed adapter output (Stage 3). The data is already flattened.
 
 **Query for "Medical Record Tasks":**
 ```sql
@@ -82,11 +82,10 @@ FROM (
   SELECT *,
          ROW_NUMBER() OVER (PARTITION BY id ORDER BY "Score" DESC, "Completion Time" DESC) AS rn
   FROM (
-    SELECT results.participants.medical_agent AS id, res.result_data.score AS "Score",
-           res.result_data.report.success_rate AS "Success Rate", res.result_data.timestamp AS "Completion Time"
+    SELECT participant_id AS id, score AS "Score",
+           success_rate AS "Success Rate", timestamp AS "Completion Time"
     FROM results
-    CROSS JOIN UNNEST(results.results) AS r(res)
-    WHERE res.result_data.subtask = 'subtask1'
+    WHERE subtask = 'subtask1'
   )
 )
 WHERE rn = 1
@@ -147,11 +146,10 @@ FROM (
   SELECT *,
          ROW_NUMBER() OVER (PARTITION BY id ORDER BY "Accuracy" DESC, "Completion Time" DESC) AS rn
   FROM (
-    SELECT results.participants.medical_agent AS id, res.result_data.accuracy AS "Accuracy",
-           res.result_data.hallucination_rate AS "Hallucination Rate", res.result_data.timestamp AS "Completion Time"
+    SELECT participant_id AS id, accuracy AS "Accuracy",
+           hallucination_rate AS "Hallucination Rate", timestamp AS "Completion Time"
     FROM results
-    CROSS JOIN UNNEST(results.results) AS r(res)
-    WHERE res.result_data.subtask = 'subtask2'
+    WHERE subtask = 'subtask2'
   )
 )
 WHERE rn = 1
@@ -164,27 +162,27 @@ ORDER BY "Accuracy" DESC;
 
 ### ✅ Field Alignment
 
-**Note:** DuckDB queries AgentBeats client output with nested `result_data` and `results` array.
+**Note:** DuckDB queries the transformed adapter output (Stage 3).
 
-| Field | Source | Destination (AgentBeats Format) | Status |
+| Field | Source | Destination (DuckDB Table) | Status |
 |-------|--------|---------------------------------|--------|
-| `subtask` | `res.result_data.subtask` | DuckDB `WHERE res.result_data.subtask = 'subtask1'` | ✅ |
-| `participant_id` | `results.participants.medical_agent` | DuckDB `results.participants.medical_agent AS id` | ✅ |
-| `score` (S1) | `res.result_data.score` | DuckDB `res.result_data.score AS "Score"` | ✅ |
-| `success_rate` (S1) | `res.result_data.report.success_rate` | DuckDB `res.result_data.report.success_rate AS "Success Rate"` | ✅ |
-| `accuracy` (S2) | `res.result_data.accuracy` | DuckDB `res.result_data.accuracy AS "Accuracy"` | ✅ |
-| `hallucination_rate` (S2) | `res.result_data.hallucination_rate` | DuckDB `res.result_data.hallucination_rate AS "Hallucination Rate"` | ✅ |
-| `timestamp` | `res.result_data.timestamp` | DuckDB `res.result_data.timestamp AS "Completion Time"` | ✅ |
+| `subtask` | `subtask` | DuckDB `WHERE subtask = 'subtask1'` | ✅ |
+| `participant_id` | `participant_id` | DuckDB `participant_id AS id` | ✅ |
+| `score` (S1) | `score` | DuckDB `score AS "Score"` | ✅ |
+| `success_rate` (S1) | `success_rate` | DuckDB `success_rate AS "Success Rate"` | ✅ |
+| `accuracy` (S2) | `accuracy` | DuckDB `accuracy AS "Accuracy"` | ✅ |
+| `hallucination_rate` (S2) | `hallucination_rate` | DuckDB `hallucination_rate AS "Hallucination Rate"` | ✅ |
+| `timestamp` | `timestamp` | DuckDB `timestamp AS "Completion Time"` | ✅ |
 
 ### ✅ Format Compatibility
 
-- [x] AgentBeats client output has `results` array with nested `result_data` objects
-- [x] Participant ID from `results.participants.medical_agent`
-- [x] Subtask filtering uses `res.result_data.subtask` after UNNEST
-- [x] Timestamp format is ISO-compliant inside `res.result_data.timestamp`
-- [x] Metrics accessible through `res.result_data` after UNNEST (score, success_rate, accuracy, hallucination_rate)
-- [x] DuckDB queries use `CROSS JOIN UNNEST(results.results)` to flatten results
-- [x] DuckDB queries filter correctly by `res.result_data.subtask`
+- [x] AgentBeats client output is transformed by adapter to flat format
+- [x] Participant ID extracted to top level
+- [x] Subtask filtering uses `subtask` column
+- [x] Timestamp format is ISO-compliant
+- [x] Metrics accessible as top-level columns
+- [x] DuckDB queries use flat table structure (no UNNEST)
+- [x] DuckDB queries filter correctly by `subtask`
 - [x] ROW_NUMBER() deduplication works correctly
 
 ### ✅ Edge Cases Handled
