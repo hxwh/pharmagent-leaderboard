@@ -1,0 +1,17 @@
+{
+  "image_digests": {
+    "green-agent": "hxwh/ai-pharmd-medagentbench-green@sha256:827772bdab9addec9d6bb4b66f716fc52e1a3059528d17d0deac401879107735",
+    "medical_agent": "hxwh/ai-pharmd-medagentbench-purple@sha256:da9b385720e2de9547c7ef760f6c1beed32d5b25f1a9fbffcc68c04e3f80792f",
+    "agentbeats-client": "ghcr.io/agentbeats/agentbeats-client@sha256:13dfe3ef4e583a80e7ce2fe3becd0ce3b879841368a7f4fa40b6ebbabeeb014e"
+  },
+  "timestamp": "2026-02-01T08:54:28Z",
+  "github_actions": {
+    "run_url": "https://github.com/hxwh/pharmagent-leaderboard/actions/runs/21559837003",
+    "run_logs_url": "https://api.github.com/repos/hxwh/pharmagent-leaderboard/actions/runs/21559837003/logs",
+    "ref": "refs/heads/purple-run-1",
+    "sha": "c262b4ada02cbb4bc0095cb3478341713e0ea274",
+    "repository_url": "https://github.com/hxwh/pharmagent-leaderboard",
+    "workflow_ref": "hxwh/pharmagent-leaderboard/.github/workflows/run-scenario.yml@refs/heads/purple-run-1",
+    "workflow_sha": "c262b4ada02cbb4bc0095cb3478341713e0ea274"
+  }
+}

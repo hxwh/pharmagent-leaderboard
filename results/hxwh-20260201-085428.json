@@ -1,0 +1,33 @@
+{
+  "participants": {
+    "medical_agent": "019c17ea-ac28-7fa2-8716-b3f79eb2913c"
+  },
+  "results": [
+    {
+      "task_id": "batch_1_tasks",
+      "batch_info": {
+        "total_tasks": 1,
+        "correct_tasks": 0,
+        "failed_tasks": 1,
+        "task_results": {
+          "task1_5": {
+            "error": "'agent'",
+            "correct": false,
+            "score": 0.0
+          }
+        }
+      },
+      "score": 0.0,
+      "correct": false,
+      "failure_type": "batch_evaluation",
+      "report": {
+        "summary": "Evaluated 1 tasks. Correct: 0/1 (0.0%)",
+        "total_tasks": 1,
+        "correct_tasks": 0,
+        "failed_tasks": 1,
+        "success_rate": 0.0
+      },
+      "log_path": "/home/agentbeats/medagentbench/src/logs/task_batch_1_tasks_20260201_085427.log"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+# PharmAgent Green Agent Configuration
+# For AgentBeats leaderboard integration
+# Docs: https://github.com/RDI-Foundation/agentbeats-leaderboard-template
+
+[green_agent]
+# Register your green agent at agentbeats.dev and replace the image line with:
+# agentbeats_id = "019c17db-16c0-73f1-9cac-a1b50c656ff2"
+# Then remove the image line below
+agentbeats_id = "019c17db-16c0-73f1-9cac-a1b50c656ff2"
+# For local testing only (remove when using agentbeats_id above)
+# image = "hxwh/ai-pharmd-medagentbench-green:latest"
+env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
+
+[[participants]]
+# Purple agent - submitters fill in their agent details
+agentbeats_id = "019c17ea-ac28-7fa2-8716-b3f79eb2913c"
+name = "medical_agent"
+# image = ""
+env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
+
+[config]
+# Assessment configuration - purple agents compete on these tasks
+
+# Subtask selection: "subtask1" (Medical Record Tasks) or "subtask2" (Confabulation Detection)
+subtask = "subtask1"
+
+# Subtask 1: Medical Record Tasks
+# Available tasks: task1 through task10 (patient lookup, vitals, labs, ordering, consultations)
+task_ids = ["task1_5"]
+max_rounds = 10
+timeout = 600
+
+# Subtask 2: Confabulation Detection (uncomment to use instead)
+# dataset = "brand"       # Options: "brand", "generic", "all"
+# condition = "default"   # Options: "default", "mitigation"
+# evaluation_mode = "subset"
+# subset_size = 2
