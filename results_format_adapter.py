@@ -23,6 +23,7 @@ def extract_leaderboard_metrics(result_data: Dict[str, Any], subtask: str) -> Di
     Returns:
         Simplified metrics dict compatible with AgentBeats leaderboard
     """
+    # First try to get metrics directly (for simple format)
     if subtask == "subtask1":
         # Subtask 1: Medical Record Tasks
         # Expected metrics: score, success_rate
@@ -30,9 +31,46 @@ def extract_leaderboard_metrics(result_data: Dict[str, Any], subtask: str) -> Di
         report = result_data.get("report") or {}
         success_rate = report.get("success_rate", 0.0) if isinstance(report, dict) else 0.0
 
+        # If we have direct metrics, use them
+        if score > 0.0 or success_rate > 0.0:
+            return {
+                "score": float(score),
+                "success_rate": float(success_rate)
+            }
+
+        # Otherwise, calculate from batch_info if available
+        batch_info = result_data.get("batch_info", {})
+        if batch_info:
+            total_tasks = batch_info.get("total_tasks", 0)
+            correct_tasks = batch_info.get("correct_tasks", 0)
+
+            if total_tasks > 0:
+                score = correct_tasks / total_tasks
+                success_rate = score  # For subtask1, score and success_rate are the same
+                return {
+                    "score": float(score),
+                    "success_rate": float(success_rate)
+                }
+
+        # Fallback: calculate from task_results
+        task_results = batch_info.get("task_results", {}) if batch_info else {}
+        if task_results:
+            total_tasks = len(task_results)
+            correct_tasks = sum(1 for task_result in task_results.values()
+                              if not task_result.get("failure_type"))
+
+            if total_tasks > 0:
+                score = correct_tasks / total_tasks
+                success_rate = score
+                return {
+                    "score": float(score),
+                    "success_rate": float(success_rate)
+                }
+
+        # Default fallback
         return {
-            "score": float(score),
-            "success_rate": float(success_rate)
+            "score": 0.0,
+            "success_rate": 0.0
         }
 
     elif subtask == "subtask2":
@@ -41,9 +79,18 @@ def extract_leaderboard_metrics(result_data: Dict[str, Any], subtask: str) -> Di
         accuracy = result_data.get("accuracy", 0.0)
         hallucination_rate = result_data.get("hallucination_rate", 0.0)
 
+        # If we have direct metrics, use them
+        if accuracy > 0.0 or hallucination_rate > 0.0:
+            return {
+                "accuracy": float(accuracy),
+                "hallucination_rate": float(hallucination_rate)
+            }
+
+        # For subtask2, we would need similar batch processing logic
+        # For now, return defaults
         return {
-            "accuracy": float(accuracy),
-            "hallucination_rate": float(hallucination_rate)
+            "accuracy": 0.0,
+            "hallucination_rate": 0.0
         }
 
     else:

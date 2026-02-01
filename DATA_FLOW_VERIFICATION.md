@@ -4,7 +4,7 @@
 
 ### Stage 1: Green Agent Output (Subtask 1)
 
-**Green Agent creates artifact:**
+**Option A: Direct metrics format:**
 ```json
 {
   "result_data": {
@@ -13,13 +13,30 @@
     "report": {
       "success_rate": 0.90
     },
-    "task_id": "batch_300_tasks",
-    ...
+    "task_id": "batch_300_tasks"
   },
   "config": {
+    "subtask": "subtask1"
+  },
+  "timestamp": "2026-02-01T12:00:00.000000"
+}
+```
+
+**Option B: Batch results format:**
+```json
+{
+  "result_data": {
     "subtask": "subtask1",
-    "task_ids": ["task1", "task2", ...],
-    ...
+    "task_id": "batch_10_tasks",
+    "batch_info": {
+      "total_tasks": 300,
+      "correct_tasks": 270,
+      "failed_tasks": 30,
+      "task_results": {
+        "task1_1": {"failure_type": null},
+        "task1_2": {"failure_type": "invalid_finish_format"}
+      }
+    }
   },
   "timestamp": "2026-02-01T12:00:00.000000"
 }
@@ -53,9 +70,11 @@
 **Adapter extracts and transforms:**
 1. ✅ Extracts `participant_id` from `participants["medical_agent"]` → `"019c17ea-ac28-7fa2-8716-b3f79eb2913c"`
 2. ✅ Extracts `subtask` from `result_data.subtask` → `"subtask1"`
-3. ✅ Extracts `score` from `result_data.score` → `0.85`
-4. ✅ Extracts `success_rate` from `result_data.report.success_rate` → `0.90`
-5. ✅ Extracts `timestamp` from top-level or `result_data.timestamp` → `"2026-02-01T12:00:00.000000"`
+3. ✅ Extracts/calculates metrics:
+   - **Direct format**: Uses `result_data.score`, `result_data.success_rate`, etc.
+   - **Batch format**: Calculates from `result_data.batch_info` (correct_tasks/total_tasks)
+   - **Task results format**: Counts successful vs failed tasks in `batch_info.task_results`
+4. ✅ Extracts `timestamp` from top-level or `result_data.timestamp` → `"2026-02-01T12:00:00.000000"`
 
 **Final output (AgentBeats format):**
 ```json
@@ -188,7 +207,10 @@ ORDER BY "Accuracy" DESC;
 - [x] Participant ID from `results.participants.medical_agent`
 - [x] Subtask filtering uses `r.result.subtask` after UNNEST
 - [x] Timestamp format is ISO-compliant inside results array
-- [x] Metrics accessible through `r.result` after UNNEST (score, success_rate, accuracy, hallucination_rate)
+- [x] **Multiple metric extraction methods:**
+  - Direct metrics: `r.result.score`, `r.result.success_rate`, etc.
+  - Batch info: Calculates from `batch_info.correct_tasks`/`batch_info.total_tasks`
+  - Task results: Counts successful vs failed tasks in `batch_info.task_results`
 - [x] DuckDB queries use `CROSS JOIN UNNEST(results.results)` to flatten results
 - [x] DuckDB queries filter correctly by `r.result.subtask`
 - [x] ROW_NUMBER() deduplication works correctly
