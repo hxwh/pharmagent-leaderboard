@@ -39,10 +39,10 @@
         "subtask": "subtask1",
         "score": 0.85,
         "report": {"success_rate": 0.90},
+        "timestamp": "2026-02-01T12:00:00.000000",
         ...
       },
-      "config": {...},
-      "timestamp": "..."
+      "config": {...}
     }
   ]
 }
@@ -69,27 +69,28 @@
 }
 ```
 
+**Note:** The adapter extracts `timestamp` from `result_data.timestamp` in the AgentBeats client output and promotes it to the top level in the final format.
+
 ### Stage 4: DuckDB Query Execution
 
-**Note:** The DuckDB store uses a key-value schema where data is stored in a `value` JSON column.
-Queries must extract fields using `value->>'field_name'` syntax.
+**Note:** DuckDB queries AgentBeats client output with `CROSS JOIN UNNEST(results.results)` to flatten the results array.
 
 **Query for "Medical Record Tasks":**
 ```sql
-SELECT id, "Score", "Success Rate", "Completion Time" 
+SELECT id, ROUND("Score", 3) AS "Score", ROUND("Success Rate", 3) AS "Success Rate", "Completion Time"
 FROM (
-  SELECT 
-    value->>'participant_id' AS id,                    -- ✅ Extracts from JSON
-    CAST(value->>'score' AS DOUBLE) AS "Score",        -- ✅ Extracts and casts
-    CAST(value->>'success_rate' AS DOUBLE) AS "Success Rate",
-    value->>'timestamp' AS "Completion Time",
-    ROW_NUMBER() OVER (PARTITION BY value->>'participant_id' 
-      ORDER BY CAST(value->>'score' AS DOUBLE) DESC, value->>'timestamp' DESC) AS rn
-  FROM results 
-  WHERE value->>'subtask' = 'subtask1'                 -- ✅ JSON filter
-) 
-WHERE rn = 1 
-ORDER BY "Score" DESC
+  SELECT *,
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY "Score" DESC, "Completion Time" DESC) AS rn
+  FROM (
+    SELECT results.participants.medical_agent AS id, res.result_data.score AS "Score",
+           res.result_data.report.success_rate AS "Success Rate", res.result_data.timestamp AS "Completion Time"
+    FROM results
+    CROSS JOIN UNNEST(results.results) AS r(res)
+    WHERE res.result_data.subtask = 'subtask1'
+  )
+)
+WHERE rn = 1
+ORDER BY "Score" DESC;
 ```
 
 **Expected Result:**
@@ -141,20 +142,20 @@ ORDER BY "Score" DESC
 
 **Query for "Confabulation Detection":**
 ```sql
-SELECT id, "Accuracy", "Hallucination Rate", "Completion Time" 
+SELECT id, ROUND("Accuracy", 3) AS "Accuracy", ROUND("Hallucination Rate", 3) AS "Hallucination Rate", "Completion Time"
 FROM (
-  SELECT 
-    value->>'participant_id' AS id,                           -- ✅ Extracts from JSON
-    CAST(value->>'accuracy' AS DOUBLE) AS "Accuracy",         -- ✅ Extracts and casts
-    CAST(value->>'hallucination_rate' AS DOUBLE) AS "Hallucination Rate",
-    value->>'timestamp' AS "Completion Time",
-    ROW_NUMBER() OVER (PARTITION BY value->>'participant_id' 
-      ORDER BY CAST(value->>'accuracy' AS DOUBLE) DESC, value->>'timestamp' DESC) AS rn
-  FROM results 
-  WHERE value->>'subtask' = 'subtask2'                        -- ✅ JSON filter
-) 
-WHERE rn = 1 
-ORDER BY "Accuracy" DESC
+  SELECT *,
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY "Accuracy" DESC, "Completion Time" DESC) AS rn
+  FROM (
+    SELECT results.participants.medical_agent AS id, res.result_data.accuracy AS "Accuracy",
+           res.result_data.hallucination_rate AS "Hallucination Rate", res.result_data.timestamp AS "Completion Time"
+    FROM results
+    CROSS JOIN UNNEST(results.results) AS r(res)
+    WHERE res.result_data.subtask = 'subtask2'
+  )
+)
+WHERE rn = 1
+ORDER BY "Accuracy" DESC;
 ```
 
 ---
@@ -163,27 +164,27 @@ ORDER BY "Accuracy" DESC
 
 ### ✅ Field Alignment
 
-**Note:** DuckDB uses key-value schema with JSON `value` column. All fields are extracted using `value->>'field_name'`.
+**Note:** DuckDB queries AgentBeats client output with nested `result_data` and `results` array.
 
-| Field | Source | Destination (JSON extraction) | Status |
-|-------|--------|-------------------------------|--------|
-| `subtask` | `result_data.subtask` | DuckDB `WHERE value->>'subtask' = '...'` | ✅ |
-| `participant_id` | `participants["medical_agent"]` | DuckDB `value->>'participant_id' AS id` | ✅ |
-| `score` (S1) | `result_data.score` | DuckDB `CAST(value->>'score' AS DOUBLE) AS "Score"` | ✅ |
-| `success_rate` (S1) | `result_data.report.success_rate` | DuckDB `CAST(value->>'success_rate' AS DOUBLE) AS "Success Rate"` | ✅ |
-| `accuracy` (S2) | `result_data.accuracy` | DuckDB `CAST(value->>'accuracy' AS DOUBLE) AS "Accuracy"` | ✅ |
-| `hallucination_rate` (S2) | `result_data.hallucination_rate` | DuckDB `CAST(value->>'hallucination_rate' AS DOUBLE) AS "Hallucination Rate"` | ✅ |
-| `timestamp` | `result_data.timestamp` or top-level | DuckDB `value->>'timestamp' AS "Completion Time"` | ✅ |
+| Field | Source | Destination (AgentBeats Format) | Status |
+|-------|--------|---------------------------------|--------|
+| `subtask` | `res.result_data.subtask` | DuckDB `WHERE res.result_data.subtask = 'subtask1'` | ✅ |
+| `participant_id` | `results.participants.medical_agent` | DuckDB `results.participants.medical_agent AS id` | ✅ |
+| `score` (S1) | `res.result_data.score` | DuckDB `res.result_data.score AS "Score"` | ✅ |
+| `success_rate` (S1) | `res.result_data.report.success_rate` | DuckDB `res.result_data.report.success_rate AS "Success Rate"` | ✅ |
+| `accuracy` (S2) | `res.result_data.accuracy` | DuckDB `res.result_data.accuracy AS "Accuracy"` | ✅ |
+| `hallucination_rate` (S2) | `res.result_data.hallucination_rate` | DuckDB `res.result_data.hallucination_rate AS "Hallucination Rate"` | ✅ |
+| `timestamp` | `res.result_data.timestamp` | DuckDB `res.result_data.timestamp AS "Completion Time"` | ✅ |
 
 ### ✅ Format Compatibility
 
-- [x] JSON structure matches sample files
-- [x] Participant ID extraction handles `results` array format
-- [x] Subtask extraction prioritizes `result_data.subtask`
-- [x] Timestamp format is ISO-compliant
-- [x] Metrics extraction handles nested `report` object for S1
-- [x] DuckDB queries use JSON extraction (`value->>'field'`) for key-value schema
-- [x] DuckDB queries filter correctly by `value->>'subtask'`
+- [x] AgentBeats client output has `results` array with nested `result_data` objects
+- [x] Participant ID from `results.participants.medical_agent`
+- [x] Subtask filtering uses `res.result_data.subtask` after UNNEST
+- [x] Timestamp format is ISO-compliant inside `res.result_data.timestamp`
+- [x] Metrics accessible through `res.result_data` after UNNEST (score, success_rate, accuracy, hallucination_rate)
+- [x] DuckDB queries use `CROSS JOIN UNNEST(results.results)` to flatten results
+- [x] DuckDB queries filter correctly by `res.result_data.subtask`
 - [x] ROW_NUMBER() deduplication works correctly
 
 ### ✅ Edge Cases Handled
