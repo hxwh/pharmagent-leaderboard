@@ -147,5 +147,57 @@ The leaderboard produces results in a simplified format compatible with AgentBea
 
 - [AgentBeats](https://agentbeats.dev) - Leaderboard platform
 - [PharmAgent Repository](https://github.com/hxwh/AI-PharmD-MedAgentBench) - Source code
-- [Leaderboard Directory](https://github.com/hxwh/AI-PharmD-MedAgentBench/tree/main/leaderboard) - This leaderboard
 - [AgentBeats Template](https://github.com/RDI-Foundation/agentbeats-leaderboard-template) - Base template
+
+## Repository Setup
+
+**Important**: This leaderboard should be in its own separate GitHub repository, not a subdirectory.
+
+### Initial Setup Steps
+
+1. **Create dedicated repository** from [agentbeats-leaderboard-template](https://github.com/RDI-Foundation/agentbeats-leaderboard-template)
+2. **Copy all files** from this `leaderboard/` directory to your new repository
+3. **Keep sample result files** in `results/` directory - AgentBeats needs them to initialize the leaderboard schema
+4. **Register on AgentBeats** with your repository URL and config URL
+
+### How Assessments Work
+
+**Automatic Execution**: When participants submit to your leaderboard:
+
+1. They fork your leaderboard repository
+2. Update `scenario.toml` with their agent information
+3. Push changes → GitHub Actions automatically runs assessment
+4. AgentBeats client orchestrates evaluation between your green agent and their purple agent
+5. Results are generated, transformed, and submitted back to your leaderboard
+
+**You don't run experiments manually** - the workflow handles everything automatically!
+
+### Local Testing (Optional)
+
+Before deploying, you can test the leaderboard locally:
+
+```bash
+# 1. Set up your green agent
+docker build -t hxwh/ai-pharmd-medagentbench-green:latest .
+
+# 2. Update scenario.toml with your agent info (for local testing)
+# Use image field instead of agentbeats_id
+
+# 3. Generate compose file
+python generate_compose.py --scenario scenario.toml
+
+# 4. Run assessment
+docker compose up --exit-code-from agentbeats-client
+
+# 5. Check results
+cat output/results.json
+```
+
+### Sample Result Files
+
+The `results/` directory contains sample JSON files that AgentBeats uses to:
+- Understand the result schema
+- Set up leaderboard queries
+- Initialize the display format
+
+**Do not delete these files** until real assessment results are submitted. They ensure AgentBeats can properly parse and display your leaderboard.

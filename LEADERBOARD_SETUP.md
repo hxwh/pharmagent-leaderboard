@@ -12,24 +12,52 @@ Based on: [agentbeats-leaderboard-template](https://github.com/RDI-Foundation/ag
 
 ## Repository Structure
 
-Since the leaderboard is a subdirectory of `AI-PharmD-MedAgentBench`, the structure is:
+**Important**: Create a separate GitHub repository for the leaderboard (not a subdirectory).
 
 ```
-AI-PharmD-MedAgentBench/
+pharmagent-leaderboard/
 ├── .github/workflows/
-│   └── run-scenario.yml       # Assessment workflow (MUST be at repo root)
-├── leaderboard/
-│   ├── scenario.toml          # Assessment configuration
-│   ├── generate_compose.py    # Docker Compose generator
-│   ├── record_provenance.py   # Provenance recorder
-│   ├── results_format_adapter.py # Transforms results for leaderboard compatibility
-│   ├── README.md              # Leaderboard documentation
-│   ├── results/               # Assessment results (leaderboard format)
-│   └── submissions/           # Submission configs and provenance
-└── ... (other project files)
+│   └── run-scenario.yml       # Assessment workflow
+├── scenario.toml              # Assessment configuration
+├── generate_compose.py        # Docker Compose generator
+├── record_provenance.py       # Provenance recorder
+├── results_format_adapter.py  # Results transformation
+├── leaderboard-config.json    # Leaderboard metadata & queries
+├── README.md                  # Documentation
+├── LEADERBOARD_SETUP.md       # Setup guide
+├── .gitignore                 # Git ignore rules
+├── results/                   # Sample + real result files
+│   ├── sample_subtask1_result.json  # Required for AgentBeats initialization
+│   └── sample_subtask2_result.json  # Required for AgentBeats initialization
+└── submissions/               # Submission configs and provenance
 ```
 
-**Important**: GitHub Actions workflows must be in the repository root's `.github/workflows/` directory, not in subdirectories.
+**Critical**: Keep the sample result files in `results/` - AgentBeats needs them to initialize the leaderboard schema.
+
+## Assessment Workflow
+
+### Automatic Execution (Production)
+
+1. **Participant submits**: Forks your repo, updates `scenario.toml`, pushes changes
+2. **GitHub Actions triggers**: Workflow automatically runs assessment
+3. **AgentBeats client orchestrates**: Runs evaluation between your green agent and participant's purple agent
+4. **Results generated**: Transformed and submitted back to your leaderboard repository
+5. **Leaderboard updates**: AgentBeats displays new results automatically
+
+**You don't need to run anything manually** - the entire process is automated!
+
+### Local Testing (Development)
+
+For testing before deployment:
+
+```bash
+# Build your green agent
+docker build -t hxwh/ai-pharmd-medagentbench-green:latest .
+
+# Update scenario.toml (use 'image' field for local testing)
+# Run generate_compose.py
+# Execute: docker compose up --exit-code-from agentbeats-client
+```
 
 ## Results Format Transformation
 

@@ -1,0 +1,14 @@
+{
+  "subtask": "subtask2",
+  "participant_id": "sample_agent",
+  "timestamp": "2026-02-01T12:30:00.000000",
+  "config": {
+    "subtask": "subtask2",
+    "dataset": "brand",
+    "condition": "default",
+    "evaluation_mode": "subset",
+    "subset_size": 2
+  },
+  "accuracy": 0.75,
+  "hallucination_rate": 0.25
+}
