@@ -6,7 +6,7 @@
 # Register your green agent at agentbeats.dev and replace the image line with:
 # agentbeats_id = "your-green-agent-id-from-agentbeats"
 # Then remove the image line below
-agentbeats_id = ""
+agentbeats_id = "019c17db-16c0-73f1-9cac-a1b50c656ff2"
 # For local testing only (remove when using agentbeats_id above)
 image = "hxwh/ai-pharmd-medagentbench-green:latest"
 env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
