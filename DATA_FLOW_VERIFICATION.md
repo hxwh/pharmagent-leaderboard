@@ -57,23 +57,29 @@
 4. ✅ Extracts `success_rate` from `result_data.report.success_rate` → `0.90`
 5. ✅ Extracts `timestamp` from top-level or `result_data.timestamp` → `"2026-02-01T12:00:00.000000"`
 
-**Final output:**
+**Final output (AgentBeats format):**
 ```json
 {
-  "subtask": "subtask1",
-  "participant_id": "019c17ea-ac28-7fa2-8716-b3f79eb2913c",
-  "timestamp": "2026-02-01T12:00:00.000000",
-  "score": 0.85,
-  "success_rate": 0.90,
-  "config": {...}
+  "participants": {
+    "medical_agent": "019c17ea-ac28-7fa2-8716-b3f79eb2913c"
+  },
+  "results": [
+    {
+      "subtask": "subtask1",
+      "score": 0.85,
+      "success_rate": 0.90,
+      "timestamp": "2026-02-01T12:00:00.000000",
+      "config": {...}
+    }
+  ]
 }
 ```
 
-**Note:** The adapter extracts `timestamp` from `result_data.timestamp` in the AgentBeats client output and promotes it to the top level in the final format.
+**Note:** The adapter produces the nested AgentBeats format with `participants` and `results` array for leaderboard querying.
 
 ### Stage 4: DuckDB Query Execution
 
-**Note:** DuckDB queries the transformed adapter output (Stage 3). The data is already flattened.
+**Note:** DuckDB queries the nested AgentBeats format with `CROSS JOIN UNNEST(results.results)` to flatten the results array.
 
 **Query for "Medical Record Tasks":**
 ```sql
@@ -82,10 +88,11 @@ FROM (
   SELECT *,
          ROW_NUMBER() OVER (PARTITION BY id ORDER BY "Score" DESC, "Completion Time" DESC) AS rn
   FROM (
-    SELECT participant_id AS id, score AS "Score",
-           success_rate AS "Success Rate", timestamp AS "Completion Time"
-    FROM results
-    WHERE subtask = 'subtask1'
+    SELECT t.participants.medical_agent AS id, r.result.score AS "Score",
+           r.result.success_rate AS "Success Rate", r.result.timestamp AS "Completion Time"
+    FROM results AS t
+    CROSS JOIN UNNEST(t.results) AS r(result)
+    WHERE r.result.subtask = 'subtask1'
   )
 )
 WHERE rn = 1
@@ -146,10 +153,11 @@ FROM (
   SELECT *,
          ROW_NUMBER() OVER (PARTITION BY id ORDER BY "Accuracy" DESC, "Completion Time" DESC) AS rn
   FROM (
-    SELECT participant_id AS id, accuracy AS "Accuracy",
-           hallucination_rate AS "Hallucination Rate", timestamp AS "Completion Time"
-    FROM results
-    WHERE subtask = 'subtask2'
+    SELECT t.participants.medical_agent AS id, r.result.accuracy AS "Accuracy",
+           r.result.hallucination_rate AS "Hallucination Rate", r.result.timestamp AS "Completion Time"
+    FROM results AS t
+    CROSS JOIN UNNEST(t.results) AS r(result)
+    WHERE r.result.subtask = 'subtask2'
   )
 )
 WHERE rn = 1
@@ -162,27 +170,27 @@ ORDER BY "Accuracy" DESC;
 
 ### ✅ Field Alignment
 
-**Note:** DuckDB queries the transformed adapter output (Stage 3).
+**Note:** DuckDB queries AgentBeats client output with nested `participants` and `results` array.
 
-| Field | Source | Destination (DuckDB Table) | Status |
+| Field | Source | Destination (AgentBeats Format) | Status |
 |-------|--------|---------------------------------|--------|
-| `subtask` | `subtask` | DuckDB `WHERE subtask = 'subtask1'` | ✅ |
-| `participant_id` | `participant_id` | DuckDB `participant_id AS id` | ✅ |
-| `score` (S1) | `score` | DuckDB `score AS "Score"` | ✅ |
-| `success_rate` (S1) | `success_rate` | DuckDB `success_rate AS "Success Rate"` | ✅ |
-| `accuracy` (S2) | `accuracy` | DuckDB `accuracy AS "Accuracy"` | ✅ |
-| `hallucination_rate` (S2) | `hallucination_rate` | DuckDB `hallucination_rate AS "Hallucination Rate"` | ✅ |
-| `timestamp` | `timestamp` | DuckDB `timestamp AS "Completion Time"` | ✅ |
+| `subtask` | `r.result.subtask` | DuckDB `WHERE r.result.subtask = 'subtask1'` | ✅ |
+| `participant_id` | `results.participants.medical_agent` | DuckDB `t.participants.medical_agent AS id` | ✅ |
+| `score` (S1) | `r.result.score` | DuckDB `r.result.score AS "Score"` | ✅ |
+| `success_rate` (S1) | `r.result.success_rate` | DuckDB `r.result.success_rate AS "Success Rate"` | ✅ |
+| `accuracy` (S2) | `r.result.accuracy` | DuckDB `r.result.accuracy AS "Accuracy"` | ✅ |
+| `hallucination_rate` (S2) | `r.result.hallucination_rate` | DuckDB `r.result.hallucination_rate AS "Hallucination Rate"` | ✅ |
+| `timestamp` | `r.result.timestamp` | DuckDB `r.result.timestamp AS "Completion Time"` | ✅ |
 
 ### ✅ Format Compatibility
 
-- [x] AgentBeats client output is transformed by adapter to flat format
-- [x] Participant ID extracted to top level
-- [x] Subtask filtering uses `subtask` column
-- [x] Timestamp format is ISO-compliant
-- [x] Metrics accessible as top-level columns
-- [x] DuckDB queries use flat table structure (no UNNEST)
-- [x] DuckDB queries filter correctly by `subtask`
+- [x] AgentBeats client output is transformed by adapter to nested format
+- [x] Participant ID from `results.participants.medical_agent`
+- [x] Subtask filtering uses `r.result.subtask` after UNNEST
+- [x] Timestamp format is ISO-compliant inside results array
+- [x] Metrics accessible through `r.result` after UNNEST (score, success_rate, accuracy, hallucination_rate)
+- [x] DuckDB queries use `CROSS JOIN UNNEST(results.results)` to flatten results
+- [x] DuckDB queries filter correctly by `r.result.subtask`
 - [x] ROW_NUMBER() deduplication works correctly
 
 ### ✅ Edge Cases Handled

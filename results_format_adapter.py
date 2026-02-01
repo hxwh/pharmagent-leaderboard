@@ -52,16 +52,17 @@ def extract_leaderboard_metrics(result_data: Dict[str, Any], subtask: str) -> Di
 
 def transform_agentbeats_results(agentbeats_results: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Transform AgentBeats client results into leaderboard-compatible format.
+    Transform AgentBeats client results into AgentBeats leaderboard-compatible format.
 
     Args:
         agentbeats_results: Results from AgentBeats client (may be A2A artifacts or direct results)
 
     Returns:
-        Leaderboard-compatible results format
+        AgentBeats leaderboard-compatible results format with participants and results array
     """
     # Extract participant_id from participants field if available
     participant_id = None
+    participants = {}
     if "participants" in agentbeats_results:
         participants = agentbeats_results["participants"]
         # Get the first participant's ID (usually medical_agent)
@@ -76,7 +77,11 @@ def transform_agentbeats_results(agentbeats_results: Dict[str, Any]) -> Dict[str
         result = agentbeats_results.copy()
         if participant_id and not result.get("participant_id"):
             result["participant_id"] = participant_id
-        return result
+        # Wrap in AgentBeats format
+        return {
+            "participants": participants,
+            "results": [result]
+        }
 
     # Case 2: Results array format (AgentBeats client output)
     if "results" in agentbeats_results and isinstance(agentbeats_results["results"], list):
@@ -87,12 +92,19 @@ def transform_agentbeats_results(agentbeats_results: Dict[str, Any]) -> Dict[str
             if "result_data" in result_item:
                 if participant_id:
                     result_item["participant_id"] = participant_id
-                return transform_pharmagent_results(result_item)
+                transformed = transform_pharmagent_results(result_item)
             # Or if it's nested differently
             elif isinstance(result_item, dict):
                 if participant_id:
                     result_item["participant_id"] = participant_id
-                return transform_pharmagent_results(result_item)
+                transformed = transform_pharmagent_results(result_item)
+            else:
+                transformed = result_item
+            # Return in AgentBeats format
+            return {
+                "participants": participants,
+                "results": [transformed]
+            }
 
     # Case 3: A2A artifacts format (extract from artifacts)
     if "artifacts" in agentbeats_results:
@@ -107,18 +119,31 @@ def transform_agentbeats_results(agentbeats_results: Dict[str, Any]) -> Dict[str
                             if participant_id:
                                 data["participant_id"] = participant_id
                             # This should contain the detailed PharmAgent results
-                            return transform_pharmagent_results(data)
+                            transformed = transform_pharmagent_results(data)
+                            # Return in AgentBeats format
+                            return {
+                                "participants": participants,
+                                "results": [transformed]
+                            }
 
     # Case 4: Raw PharmAgent format (fallback for testing)
     if "result_data" in agentbeats_results:
         if participant_id:
             agentbeats_results["participant_id"] = participant_id
-        return transform_pharmagent_results(agentbeats_results)
+        transformed = transform_pharmagent_results(agentbeats_results)
+        # Return in AgentBeats format
+        return {
+            "participants": participants,
+            "results": [transformed]
+        }
 
-    # Default: assume it's already in the right format
+    # Default: assume it's already in the right format, wrap it
     if participant_id and "participant_id" not in agentbeats_results:
         agentbeats_results["participant_id"] = participant_id
-    return agentbeats_results
+    return {
+        "participants": participants,
+        "results": [agentbeats_results]
+    }
 
 
 def get_participant_id_from_scenario() -> str:
