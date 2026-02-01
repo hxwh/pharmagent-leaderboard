@@ -71,18 +71,22 @@
 
 ### Stage 4: DuckDB Query Execution
 
+**Note:** The DuckDB store uses a key-value schema where data is stored in a `value` JSON column.
+Queries must extract fields using `value->>'field_name'` syntax.
+
 **Query for "Medical Record Tasks":**
 ```sql
 SELECT id, "Score", "Success Rate", "Completion Time" 
 FROM (
   SELECT 
-    participant_id AS id,           -- ✅ Matches: "019c17ea-ac28-7fa2-8716-b3f79eb2913c"
-    score AS "Score",                -- ✅ Matches: 0.85
-    success_rate AS "Success Rate",  -- ✅ Matches: 0.90
-    timestamp AS "Completion Time",  -- ✅ Matches: "2026-02-01T12:00:00.000000"
-    ROW_NUMBER() OVER (PARTITION BY participant_id ORDER BY score DESC, timestamp DESC) AS rn
+    value->>'participant_id' AS id,                    -- ✅ Extracts from JSON
+    CAST(value->>'score' AS DOUBLE) AS "Score",        -- ✅ Extracts and casts
+    CAST(value->>'success_rate' AS DOUBLE) AS "Success Rate",
+    value->>'timestamp' AS "Completion Time",
+    ROW_NUMBER() OVER (PARTITION BY value->>'participant_id' 
+      ORDER BY CAST(value->>'score' AS DOUBLE) DESC, value->>'timestamp' DESC) AS rn
   FROM results 
-  WHERE subtask = 'subtask1'         -- ✅ Matches: "subtask1"
+  WHERE value->>'subtask' = 'subtask1'                 -- ✅ JSON filter
 ) 
 WHERE rn = 1 
 ORDER BY "Score" DESC
@@ -140,13 +144,14 @@ ORDER BY "Score" DESC
 SELECT id, "Accuracy", "Hallucination Rate", "Completion Time" 
 FROM (
   SELECT 
-    participant_id AS id,                    -- ✅ Matches UUID
-    accuracy AS "Accuracy",                  -- ✅ Matches: 0.75
-    hallucination_rate AS "Hallucination Rate", -- ✅ Matches: 0.25
-    timestamp AS "Completion Time",          -- ✅ Matches timestamp
-    ROW_NUMBER() OVER (PARTITION BY participant_id ORDER BY accuracy DESC, timestamp DESC) AS rn
+    value->>'participant_id' AS id,                           -- ✅ Extracts from JSON
+    CAST(value->>'accuracy' AS DOUBLE) AS "Accuracy",         -- ✅ Extracts and casts
+    CAST(value->>'hallucination_rate' AS DOUBLE) AS "Hallucination Rate",
+    value->>'timestamp' AS "Completion Time",
+    ROW_NUMBER() OVER (PARTITION BY value->>'participant_id' 
+      ORDER BY CAST(value->>'accuracy' AS DOUBLE) DESC, value->>'timestamp' DESC) AS rn
   FROM results 
-  WHERE subtask = 'subtask2'                 -- ✅ Matches: "subtask2"
+  WHERE value->>'subtask' = 'subtask2'                        -- ✅ JSON filter
 ) 
 WHERE rn = 1 
 ORDER BY "Accuracy" DESC
@@ -158,15 +163,17 @@ ORDER BY "Accuracy" DESC
 
 ### ✅ Field Alignment
 
-| Field | Source | Destination | Status |
-|-------|--------|-------------|--------|
-| `subtask` | `result_data.subtask` | DuckDB `WHERE subtask = '...'` | ✅ |
-| `participant_id` | `participants["medical_agent"]` | DuckDB `participant_id AS id` | ✅ |
-| `score` (S1) | `result_data.score` | DuckDB `score AS "Score"` | ✅ |
-| `success_rate` (S1) | `result_data.report.success_rate` | DuckDB `success_rate AS "Success Rate"` | ✅ |
-| `accuracy` (S2) | `result_data.accuracy` | DuckDB `accuracy AS "Accuracy"` | ✅ |
-| `hallucination_rate` (S2) | `result_data.hallucination_rate` | DuckDB `hallucination_rate AS "Hallucination Rate"` | ✅ |
-| `timestamp` | `result_data.timestamp` or top-level | DuckDB `timestamp AS "Completion Time"` | ✅ |
+**Note:** DuckDB uses key-value schema with JSON `value` column. All fields are extracted using `value->>'field_name'`.
+
+| Field | Source | Destination (JSON extraction) | Status |
+|-------|--------|-------------------------------|--------|
+| `subtask` | `result_data.subtask` | DuckDB `WHERE value->>'subtask' = '...'` | ✅ |
+| `participant_id` | `participants["medical_agent"]` | DuckDB `value->>'participant_id' AS id` | ✅ |
+| `score` (S1) | `result_data.score` | DuckDB `CAST(value->>'score' AS DOUBLE) AS "Score"` | ✅ |
+| `success_rate` (S1) | `result_data.report.success_rate` | DuckDB `CAST(value->>'success_rate' AS DOUBLE) AS "Success Rate"` | ✅ |
+| `accuracy` (S2) | `result_data.accuracy` | DuckDB `CAST(value->>'accuracy' AS DOUBLE) AS "Accuracy"` | ✅ |
+| `hallucination_rate` (S2) | `result_data.hallucination_rate` | DuckDB `CAST(value->>'hallucination_rate' AS DOUBLE) AS "Hallucination Rate"` | ✅ |
+| `timestamp` | `result_data.timestamp` or top-level | DuckDB `value->>'timestamp' AS "Completion Time"` | ✅ |
 
 ### ✅ Format Compatibility
 
@@ -175,7 +182,8 @@ ORDER BY "Accuracy" DESC
 - [x] Subtask extraction prioritizes `result_data.subtask`
 - [x] Timestamp format is ISO-compliant
 - [x] Metrics extraction handles nested `report` object for S1
-- [x] DuckDB queries filter correctly by `subtask`
+- [x] DuckDB queries use JSON extraction (`value->>'field'`) for key-value schema
+- [x] DuckDB queries filter correctly by `value->>'subtask'`
 - [x] ROW_NUMBER() deduplication works correctly
 
 ### ✅ Edge Cases Handled
