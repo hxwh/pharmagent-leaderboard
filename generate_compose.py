@@ -1,4 +1,9 @@
-"""Generate Docker Compose configuration from scenario.toml"""
+#!/usr/bin/env python3
+"""Generate Docker Compose configuration from scenario.toml
+
+AgentBeats-compatible compose generator for PharmAgent leaderboard.
+Based on: https://github.com/RDI-Foundation/agentbeats-leaderboard-template
+"""
 
 import argparse
 import os
@@ -29,6 +34,13 @@ except ImportError:
 
 AGENTBEATS_API_URL = "https://agentbeats.dev/api/agents"
 
+COMPOSE_PATH = "docker-compose.yml"
+A2A_SCENARIO_PATH = "a2a-scenario.toml"
+ENV_PATH = ".env.example"
+
+DEFAULT_PORT = 9009
+DEFAULT_ENV_VARS = {"PYTHONUNBUFFERED": "1"}
+
 
 def fetch_agent_info(agentbeats_id: str) -> dict:
     """Fetch agent info from agentbeats.dev API."""
@@ -48,14 +60,71 @@ def fetch_agent_info(agentbeats_id: str) -> dict:
         sys.exit(1)
 
 
-COMPOSE_PATH = "docker-compose.yml"
-A2A_SCENARIO_PATH = "a2a-scenario.toml"
-ENV_PATH = ".env.example"
+def resolve_image(agent: dict, name: str) -> None:
+    """Resolve docker image for an agent, either from 'image' field or agentbeats API."""
+    has_image = "image" in agent and agent["image"]
+    has_id = "agentbeats_id" in agent and agent["agentbeats_id"]
 
-DEFAULT_PORT = 9009
-DEFAULT_ENV_VARS = {"PYTHONUNBUFFERED": "1"}
+    if has_image and has_id:
+        print(f"Error: {name} has both 'image' and 'agentbeats_id' - use one or the other")
+        sys.exit(1)
+    elif has_image:
+        if os.environ.get("GITHUB_ACTIONS"):
+            print(f"Error: {name} requires 'agentbeats_id' for GitHub Actions (use 'image' for local testing only)")
+            sys.exit(1)
+        print(f"Using {name} image: {agent['image']}")
+    elif has_id:
+        info = fetch_agent_info(agent["agentbeats_id"])
+        agent["image"] = info["docker_image"]
+        print(f"Resolved {name} image: {agent['image']}")
+    else:
+        print(f"Error: {name} must have either 'image' or 'agentbeats_id' field")
+        sys.exit(1)
+
+
+def parse_scenario(scenario_path: Path) -> dict[str, Any]:
+    """Parse scenario.toml and resolve all agent images."""
+    toml_data = scenario_path.read_text()
+    data = tomli.loads(toml_data)
+
+    green = data.get("green_agent", {})
+    resolve_image(green, "green_agent")
+
+    participants = data.get("participants", [])
+
+    # Check for duplicate participant names
+    names = [p.get("name") for p in participants]
+    duplicates = [name for name in set(names) if names.count(name) > 1]
+    if duplicates:
+        print(f"Error: Duplicate participant names found: {', '.join(duplicates)}")
+        print("Each participant must have a unique name.")
+        sys.exit(1)
+
+    for participant in participants:
+        name = participant.get("name", "unknown")
+        resolve_image(participant, f"participant '{name}'")
+
+    return data
+
+
+def format_env_vars(env_dict: dict[str, Any]) -> str:
+    """Format environment variables for docker-compose."""
+    env_vars = {**DEFAULT_ENV_VARS, **env_dict}
+    lines = [f"      - {key}={value}" for key, value in env_vars.items()]
+    return "\n" + "\n".join(lines)
+
+
+def format_depends_on(services: list) -> str:
+    """Format depends_on section with health checks."""
+    lines = []
+    for service in services:
+        lines.append(f"      {service}:")
+        lines.append(f"        condition: service_healthy")
+    return "\n" + "\n".join(lines)
+
 
 COMPOSE_TEMPLATE = """# Auto-generated from scenario.toml
+# PharmAgent AgentBeats Leaderboard
 
 services:
   green-agent:
@@ -74,8 +143,7 @@ services:
     networks:
       - agent-network
 
-{participant_services}
-  agentbeats-client:
+{participant_services}  agentbeats-client:
     image: ghcr.io/agentbeats/agentbeats-client:v1.0.0
     platform: linux/amd64
     container_name: agentbeats-client
@@ -106,82 +174,27 @@ PARTICIPANT_TEMPLATE = """  {name}:
       start_period: 30s
     networks:
       - agent-network
+
 """
 
-A2A_SCENARIO_TEMPLATE = """[green_agent]
+A2A_SCENARIO_TEMPLATE = """# Auto-generated A2A scenario configuration
+# PharmAgent Assessment
+
+[green_agent]
 endpoint = "http://green-agent:{green_port}"
 
 {participants}
 {config}"""
 
 
-def resolve_image(agent: dict, name: str) -> None:
-    """Resolve docker image for an agent, either from 'image' field or agentbeats API."""
-    has_image = "image" in agent
-    has_id = "agentbeats_id" in agent
-
-    if has_image and has_id:
-        print(f"Error: {name} has both 'image' and 'agentbeats_id' - use one or the other")
-        sys.exit(1)
-    elif has_image:
-        if os.environ.get("GITHUB_ACTIONS"):
-            print(f"Error: {name} requires 'agentbeats_id' for GitHub Actions (use 'image' for local testing only)")
-            sys.exit(1)
-        print(f"Using {name} image: {agent['image']}")
-    elif has_id:
-        info = fetch_agent_info(agent["agentbeats_id"])
-        agent["image"] = info["docker_image"]
-        print(f"Resolved {name} image: {agent['image']}")
-    else:
-        print(f"Error: {name} must have either 'image' or 'agentbeats_id' field")
-        sys.exit(1)
-
-
-def parse_scenario(scenario_path: Path) -> dict[str, Any]:
-    toml_data = scenario_path.read_text()
-    data = tomli.loads(toml_data)
-
-    green = data.get("green_agent", {})
-    resolve_image(green, "green_agent")
-
-    participants = data.get("participants", [])
-
-    # Check for duplicate participant names
-    names = [p.get("name") for p in participants]
-    duplicates = [name for name in set(names) if names.count(name) > 1]
-    if duplicates:
-        print(f"Error: Duplicate participant names found: {', '.join(duplicates)}")
-        print("Each participant must have a unique name.")
-        sys.exit(1)
-
-    for participant in participants:
-        name = participant.get("name", "unknown")
-        resolve_image(participant, f"participant '{name}'")
-
-    return data
-
-
-def format_env_vars(env_dict: dict[str, Any]) -> str:
-    env_vars = {**DEFAULT_ENV_VARS, **env_dict}
-    lines = [f"      - {key}={value}" for key, value in env_vars.items()]
-    return "\n" + "\n".join(lines)
-
-
-def format_depends_on(services: list) -> str:
-    lines = []
-    for service in services:
-        lines.append(f"      {service}:")
-        lines.append(f"        condition: service_healthy")
-    return "\n" + "\n".join(lines)
-
-
 def generate_docker_compose(scenario: dict[str, Any]) -> str:
+    """Generate docker-compose.yml content."""
     green = scenario["green_agent"]
     participants = scenario.get("participants", [])
 
     participant_names = [p["name"] for p in participants]
 
-    participant_services = "\n".join([
+    participant_services = "".join([
         PARTICIPANT_TEMPLATE.format(
             name=p["name"],
             image=p["image"],
@@ -193,29 +206,32 @@ def generate_docker_compose(scenario: dict[str, Any]) -> str:
 
     all_services = ["green-agent"] + participant_names
 
+    # Handle case with no participants
+    green_depends = format_depends_on(participant_names) if participant_names else "\n      {}"
+
     return COMPOSE_TEMPLATE.format(
         green_image=green["image"],
         green_port=DEFAULT_PORT,
         green_env=format_env_vars(green.get("env", {})),
-        green_depends=format_depends_on(participant_names),
+        green_depends=green_depends,
         participant_services=participant_services,
         client_depends=format_depends_on(all_services)
     )
 
 
 def generate_a2a_scenario(scenario: dict[str, Any]) -> str:
-    green = scenario["green_agent"]
+    """Generate a2a-scenario.toml content."""
     participants = scenario.get("participants", [])
 
     participant_lines = []
     for p in participants:
         lines = [
             f"[[participants]]",
-            f"role = \"{p['name']}\"",
-            f"endpoint = \"http://{p['name']}:{DEFAULT_PORT}\"",
+            f'role = "{p["name"]}"',
+            f'endpoint = "http://{p["name"]}:{DEFAULT_PORT}"',
         ]
-        if "agentbeats_id" in p:
-            lines.append(f"agentbeats_id = \"{p['agentbeats_id']}\"")
+        if p.get("agentbeats_id"):
+            lines.append(f'agentbeats_id = "{p["agentbeats_id"]}"')
         participant_lines.append("\n".join(lines) + "\n")
 
     config_section = scenario.get("config", {})
@@ -229,6 +245,7 @@ def generate_a2a_scenario(scenario: dict[str, Any]) -> str:
 
 
 def generate_env_file(scenario: dict[str, Any]) -> str:
+    """Generate .env.example file with required secrets."""
     green = scenario["green_agent"]
     participants = scenario.get("participants", [])
 
@@ -258,7 +275,7 @@ def generate_env_file(scenario: dict[str, Any]) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Generate Docker Compose from scenario.toml")
-    parser.add_argument("--scenario", type=Path)
+    parser.add_argument("--scenario", type=Path, default=Path("scenario.toml"))
     args = parser.parse_args()
 
     if not args.scenario.exists():
@@ -280,6 +297,7 @@ def main():
         print(f"Generated {ENV_PATH}")
 
     print(f"Generated {COMPOSE_PATH} and {A2A_SCENARIO_PATH}")
+
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,9 @@
-"""Record provenance information (image digests, timestamp, and workflow metadata) for assessment results."""
+#!/usr/bin/env python3
+"""Record provenance information (image digests, timestamp, and workflow metadata) for assessment results.
+
+AgentBeats-compatible provenance recorder for PharmAgent leaderboard.
+Based on: https://github.com/RDI-Foundation/agentbeats-leaderboard-template
+"""
 
 import argparse
 import json
@@ -23,13 +28,13 @@ def get_image_digest(image: str) -> str:
         text=True,
     )
     if result.returncode != 0:
-        print(f"Error: Failed to inspect image '{image}': {result.stderr.strip()}")
-        sys.exit(1)
+        print(f"Warning: Failed to inspect image '{image}': {result.stderr.strip()}")
+        return f"{image}@unknown"
 
     digest = result.stdout.strip()
     if not digest:
-        print(f"Error: No registry digest found for image '{image}'")
-        sys.exit(1)
+        print(f"Warning: No registry digest found for image '{image}'")
+        return f"{image}@unknown"
 
     return digest
 
@@ -43,7 +48,7 @@ def collect_image_digests(compose: dict) -> dict[str, str]:
     """Collect digests for all images in the compose file."""
     digests = {}
 
-    for name, service in compose["services"].items():
+    for name, service in compose.get("services", {}).items():
         image = service.get("image")
         if image:
             digests[name] = get_image_digest(image)
@@ -61,12 +66,14 @@ def collect_github_actions_metadata() -> dict[str, str] | None:
     server_url = env.get("GITHUB_SERVER_URL")
     api_url = env.get("GITHUB_API_URL")
     run_id = env.get("GITHUB_RUN_ID")
+
     run_url = None
     repository_url = None
     if repository and server_url and run_id:
         run_url = f"{server_url}/{repository}/actions/runs/{run_id}"
     if repository and server_url:
         repository_url = f"{server_url}/{repository}"
+
     run_logs_url = None
     if repository and api_url and run_id:
         run_logs_url = f"{api_url}/repos/{repository}/actions/runs/{run_id}/logs"
@@ -90,18 +97,20 @@ def write_provenance(output_path: Path, image_digests: dict[str, str]) -> None:
         "image_digests": image_digests,
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     }
+
     github_actions = collect_github_actions_metadata()
     if github_actions:
         provenance["github_actions"] = github_actions
 
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
         json.dump(provenance, f, indent=2)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Record provenance information for assessment results")
-    parser.add_argument("--compose", type=Path, required=True, help="Path to docker-compose.yml")
-    parser.add_argument("--output", type=Path, required=True, help="Path to output provenance JSON file")
+    parser.add_argument("--compose", type=Path, default=Path("docker-compose.yml"), help="Path to docker-compose.yml")
+    parser.add_argument("--output", type=Path, default=Path("output/provenance.json"), help="Path to output provenance JSON file")
     args = parser.parse_args()
 
     if not args.compose.exists():
