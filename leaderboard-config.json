@@ -1,0 +1,107 @@
+{
+  "name": "MedAgentBench Leaderboard",
+  "description": "Medical AI Agent Benchmark for Clinical Reasoning and Hallucination Detection",
+  "version": "1.0.0",
+  "green_agent_id": "019c17db-16c0-73f1-9cac-a1b50c656ff2",
+  
+  "subtasks": {
+    "subtask1": {
+      "name": "Clinical Decision Making",
+      "description": "Medical record tasks: patient lookup, vitals, labs, medication ordering",
+      "metrics": {
+        "accuracy": {
+          "type": "number",
+          "display_name": "Accuracy",
+          "description": "Proportion of tasks answered correctly",
+          "sort_order": "desc",
+          "format": "percent",
+          "primary": true
+        },
+        "total_tasks": {
+          "type": "integer",
+          "display_name": "Tasks",
+          "description": "Number of tasks evaluated"
+        },
+        "correct_tasks": {
+          "type": "integer",
+          "display_name": "Correct",
+          "description": "Number of correct answers"
+        }
+      }
+    },
+    "subtask2": {
+      "name": "Confabulation Detection",
+      "description": "Pokemon-Drugs hallucination detection benchmark",
+      "metrics": {
+        "accuracy": {
+          "type": "number",
+          "display_name": "Accuracy",
+          "description": "Detection accuracy",
+          "sort_order": "desc",
+          "format": "percent",
+          "primary": true
+        },
+        "hallucination_rate": {
+          "type": "number",
+          "display_name": "Hallucination Rate",
+          "description": "Rate of hallucinations (lower is better)",
+          "sort_order": "asc",
+          "format": "percent"
+        },
+        "total_tasks": {
+          "type": "integer",
+          "display_name": "Cases",
+          "description": "Number of cases evaluated"
+        }
+      }
+    }
+  },
+
+  "result_schema": {
+    "required": ["subtask", "total_tasks", "correct_tasks", "accuracy"],
+    "properties": {
+      "subtask": {
+        "type": "string",
+        "enum": ["subtask1", "subtask2"]
+      },
+      "total_tasks": {
+        "type": "integer"
+      },
+      "correct_tasks": {
+        "type": "integer"
+      },
+      "accuracy": {
+        "type": "number"
+      },
+      "success_rate": {
+        "type": "number",
+        "description": "Subtask1 only, equals accuracy"
+      },
+      "hallucination_rate": {
+        "type": "number",
+        "description": "Subtask2 only"
+      },
+      "time_used": {
+        "type": "integer",
+        "description": "Evaluation time in seconds"
+      }
+    }
+  },
+
+  "display_columns": {
+    "subtask1": [
+      {"field": "participant_id", "label": "Agent"},
+      {"field": "accuracy", "label": "Accuracy", "format": "percent"},
+      {"field": "correct_tasks", "label": "Correct"},
+      {"field": "total_tasks", "label": "Total"},
+      {"field": "timestamp", "label": "Date", "format": "date"}
+    ],
+    "subtask2": [
+      {"field": "participant_id", "label": "Agent"},
+      {"field": "accuracy", "label": "Accuracy", "format": "percent"},
+      {"field": "hallucination_rate", "label": "Halluc. Rate", "format": "percent"},
+      {"field": "total_tasks", "label": "Cases"},
+      {"field": "timestamp", "label": "Date", "format": "date"}
+    ]
+  }
+}

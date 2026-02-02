@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Record provenance information (image digests, timestamp, and workflow metadata) for assessment results.
 
-AgentBeats-compatible provenance recorder for PharmAgent leaderboard.
+AgentBeats-compatible provenance recorder for MedAgentBench leaderboard.
 Based on: https://github.com/RDI-Foundation/agentbeats-leaderboard-template
 """
 

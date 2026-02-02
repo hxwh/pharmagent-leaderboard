@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate Docker Compose configuration from scenario.toml
 
-AgentBeats-compatible compose generator for PharmAgent leaderboard.
+AgentBeats-compatible compose generator for MedAgentBench leaderboard.
 Based on: https://github.com/RDI-Foundation/agentbeats-leaderboard-template
 """
 
@@ -124,7 +124,7 @@ def format_depends_on(services: list) -> str:
 
 
 COMPOSE_TEMPLATE = """# Auto-generated from scenario.toml
-# PharmAgent AgentBeats Leaderboard
+# MedAgentBench AgentBeats Leaderboard
 
 services:
   green-agent:
@@ -178,7 +178,7 @@ PARTICIPANT_TEMPLATE = """  {name}:
 """
 
 A2A_SCENARIO_TEMPLATE = """# Auto-generated A2A scenario configuration
-# PharmAgent Assessment
+# MedAgentBench Assessment
 
 [green_agent]
 endpoint = "http://green-agent:{green_port}"

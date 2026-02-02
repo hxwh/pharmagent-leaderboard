@@ -1,13 +1,13 @@
-# PharmAgent Leaderboard Setup Guide
+# MedAgentBench Leaderboard Setup Guide
 
-This guide walks you through setting up the PharmAgent leaderboard using the AgentBeats template for standardized, reproducible evaluations.
+This guide walks you through setting up the MedAgentBench leaderboard using the AgentBeats template for standardized, reproducible evaluations.
 
 Based on: [agentbeats-leaderboard-template](https://github.com/RDI-Foundation/agentbeats-leaderboard-template)
 
 ## Prerequisites
 
 1. **AgentBeats Account**: Register at [agentbeats.dev](https://agentbeats.dev)
-2. **Green Agent Registration**: Register your PharmAgent green agent on AgentBeats
+2. **Green Agent Registration**: Register your MedAgentBench green agent on AgentBeats
 3. **Docker Image**: Publish your green agent image (e.g., to Docker Hub or GHCR)
 
 ## Repository Structure
@@ -61,13 +61,13 @@ docker build -t hxwh/ai-pharmd-medagentbench-green:latest .
 
 ## Results Format Transformation
 
-The workflow automatically transforms PharmAgent's detailed evaluation results into AgentBeats-compatible format:
+The workflow automatically transforms MedAgentBench's detailed evaluation results into AgentBeats-compatible format:
 
 1. **AgentBeats Client** produces `output/results.json` with A2A protocol artifacts
 2. **Results Format Adapter** transforms this into leaderboard-compatible metrics
 3. **Final results.json** contains only the scoring metrics defined in `leaderboard-config.json`
 
-This ensures compatibility between PharmAgent's rich evaluation data and AgentBeats' leaderboard display requirements.
+This ensures compatibility between MedAgentBench's rich evaluation data and AgentBeats' leaderboard display requirements.
 
 ## Step-by-Step Setup
 
@@ -78,7 +78,7 @@ Option A: Use this `leaderboard/` directory as your repository root.
 Option B: Create from template:
 1. Go to [agentbeats-leaderboard-template](https://github.com/RDI-Foundation/agentbeats-leaderboard-template)
 2. Click "Use this template" to create a new repository
-3. Copy PharmAgent-specific files from this directory
+3. Copy MedAgentBench-specific files from this directory
 
 ### Step 2: Configure Repository Permissions
 
@@ -90,7 +90,7 @@ Option B: Create from template:
 
 1. Go to [agentbeats.dev](https://agentbeats.dev)
 2. Register your green agent:
-   - **Name**: PharmAgent Evaluator
+   - **Name**: MedAgentBench Evaluator
    - **Docker Image**: `hxwh/ai-pharmd-medagentbench-green:latest`
    - **Description**: Medical AI agent benchmark for clinical reasoning
 3. Note the `agentbeats_id` for your green agent
