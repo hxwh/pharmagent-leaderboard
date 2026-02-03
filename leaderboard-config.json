@@ -58,7 +58,7 @@
   },
 
   "result_schema": {
-    "required": ["subtask", "total_tasks", "correct_tasks", "accuracy"],
+    "required": ["subtask", "total_tasks"],
     "properties": {
       "subtask": {
         "type": "string",
@@ -87,6 +87,21 @@
       }
     }
   },
+
+  "queries": [
+    {
+      "name": "Clinical Decision Making",
+      "query": "SELECT id, ROUND(\"accuracy\", 3) AS \"Accuracy\", \"correct_tasks\" AS \"Correct\", \"total_tasks\" AS \"Total\", \"timestamp\" AS \"Date\" FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY \"accuracy\" DESC, \"timestamp\" DESC) AS rn FROM (SELECT t.participants.medical_agent AS id, r.result.accuracy, r.result.correct_tasks, r.result.total_tasks, r.result.timestamp FROM results AS t CROSS JOIN UNNEST(t.results) AS r(result) WHERE r.result.subtask = 'subtask1')) WHERE rn = 1 ORDER BY \"accuracy\" DESC;"
+    },
+    {
+      "name": "Confabulation Detection",
+      "query": "SELECT id, ROUND(\"accuracy\", 3) AS \"Accuracy\", ROUND(\"hallucination_rate\", 3) AS \"Hallucination Rate\", \"total_tasks\" AS \"Cases\", \"timestamp\" AS \"Date\" FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY \"accuracy\" DESC, \"timestamp\" DESC) AS rn FROM (SELECT t.participants.medical_agent AS id, r.result.accuracy, r.result.hallucination_rate, r.result.total_tasks, r.result.timestamp FROM results AS t CROSS JOIN UNNEST(t.results) AS r(result) WHERE r.result.subtask = 'subtask2')) WHERE rn = 1 ORDER BY \"accuracy\" DESC;"
+    },
+    {
+      "name": "Overall Performance",
+      "query": "SELECT id, ROUND(\"avg_accuracy\", 3) AS \"Avg Accuracy\", \"submissions\" AS \"Submissions\", \"latest_date\" AS \"Latest Date\" FROM (SELECT t.participants.medical_agent AS id, AVG(r.result.accuracy) AS avg_accuracy, COUNT(*) AS submissions, MAX(r.result.timestamp) AS latest_date FROM results AS t CROSS JOIN UNNEST(t.results) AS r(result) GROUP BY t.participants.medical_agent) ORDER BY avg_accuracy DESC;"
+    }
+  ],
 
   "display_columns": {
     "subtask1": [

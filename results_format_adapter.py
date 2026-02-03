@@ -3,7 +3,10 @@
 Results Format Adapter for MedAgentBench Leaderboard.
 
 Transforms Green Agent A2A artifact output to leaderboard-compatible format.
-Follows patterns from FhirAgentEvaluator.
+Supports multiple evaluation frameworks:
+- subtask1/subtask2: Original MedAgentBench
+- agentify-medagentbench: Enhanced MedAgentBench with A2A and MCP
+- fhiragentevaluator: Multi-benchmark evaluation
 """
 
 import json
@@ -15,26 +18,46 @@ from typing import Any
 
 def extract_result_from_artifact(artifact_data: dict[str, Any]) -> dict[str, Any]:
     """
-    Extract MedAgentBenchResult from A2A artifact DataPart.
-    
-    The Green Agent outputs:
-    {
-        "subtask": "subtask1",
-        "total_tasks": 300,
-        "correct_tasks": 255,
-        "accuracy": 0.85,
-        ...
-    }
+    Extract result from A2A artifact DataPart for any supported evaluation framework.
+
+    Supports:
+    - subtask1/subtask2: Original MedAgentBench
+    - agentify-medagentbench: Enhanced MedAgentBench with A2A and MCP
+    - fhiragentevaluator: Multi-benchmark evaluation
     """
     # If already in correct format, return as-is
-    if "subtask" in artifact_data and "accuracy" in artifact_data:
+    if "subtask" in artifact_data:
         return artifact_data
-    
+
+    # Handle Agentify-MedAgentBench format (from overall.json)
+    if "domain" in artifact_data and artifact_data.get("domain") == "medagentbench":
+        return {
+            "subtask": "subtask1",
+            "total_tasks": artifact_data.get("total_tasks", 0),
+            "correct_tasks": artifact_data.get("correct_count", 0),
+            "accuracy": artifact_data.get("pass_rate", 0.0),
+            "success_rate": artifact_data.get("pass_rate", 0.0),
+            "time_used": artifact_data.get("time_used", 0),
+        }
+
+    # Handle FHIR Agent Evaluator format
+    if any(key in artifact_data for key in ["answer_correctness", "action_correctness", "f1_score", "correct_answers", "avg_precision"]):
+        return {
+            "subtask": "subtask2",
+            "total_tasks": artifact_data.get("total_tasks", 0),
+            "correct_tasks": artifact_data.get("correct_answers", 0),
+            "accuracy": artifact_data.get("accuracy", artifact_data.get("answer_correctness", 0.0)),
+            "precision": artifact_data.get("avg_precision", 0.0),
+            "recall": artifact_data.get("avg_recall", 0.0),
+            "f1_score": artifact_data.get("f1_score", 0.0),
+            "time_used": artifact_data.get("time_used", 0),
+        }
+
     # Handle legacy format with nested result_data
     if "result_data" in artifact_data:
         result_data = artifact_data["result_data"]
         subtask = result_data.get("subtask", "subtask1")
-        
+
         # Convert legacy fields to new format
         if subtask == "subtask1":
             # Legacy: score, success_rate, batch_info
@@ -42,7 +65,7 @@ def extract_result_from_artifact(artifact_data: dict[str, Any]) -> dict[str, Any
             total = batch_info.get("total_tasks", 0) or result_data.get("total_tasks", 0)
             correct = batch_info.get("correct_tasks", 0) or result_data.get("correct_tasks", 0)
             accuracy = result_data.get("score", 0.0) or (correct / total if total > 0 else 0.0)
-            
+
             return {
                 "subtask": "subtask1",
                 "total_tasks": total,
@@ -51,7 +74,7 @@ def extract_result_from_artifact(artifact_data: dict[str, Any]) -> dict[str, Any
                 "success_rate": accuracy,
                 "time_used": result_data.get("time_used"),
             }
-        
+
         elif subtask == "subtask2":
             # Legacy: accuracy, hallucination_rate, metrics
             metrics = result_data.get("metrics", {})
@@ -59,7 +82,7 @@ def extract_result_from_artifact(artifact_data: dict[str, Any]) -> dict[str, Any
             accuracy = result_data.get("accuracy", 0.0)
             hallucination_rate = result_data.get("hallucination_rate", 0.0)
             correct = int(total * accuracy) if total > 0 else 0
-            
+
             return {
                 "subtask": "subtask2",
                 "total_tasks": total,
@@ -68,7 +91,7 @@ def extract_result_from_artifact(artifact_data: dict[str, Any]) -> dict[str, Any
                 "hallucination_rate": hallucination_rate,
                 "time_used": result_data.get("time_used"),
             }
-    
+
     # Fallback: try to infer from available fields
     return artifact_data
 
@@ -76,17 +99,22 @@ def extract_result_from_artifact(artifact_data: dict[str, Any]) -> dict[str, Any
 def transform_agentbeats_output(client_output: dict[str, Any]) -> dict[str, Any]:
     """
     Transform AgentBeats client output to leaderboard format.
-    
+
+    Supports multiple evaluation frameworks:
+    - Original MedAgentBench (subtask1/subtask2)
+    - Agentify-MedAgentBench (enhanced with A2A and MCP)
+    - FHIR Agent Evaluator (multi-benchmark)
+
     Input (from agentbeats-client):
     {
         "participants": {"medical_agent": "uuid"},
         "results": [<DataPart contents>]
     }
-    
+
     Output:
     {
         "participants": {"medical_agent": "uuid"},
-        "results": [<MedAgentBenchResult>]
+        "results": [<Framework-specific result>]
     }
     """
     participants = client_output.get("participants", {})

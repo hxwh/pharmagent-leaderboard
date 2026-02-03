@@ -18,27 +18,30 @@ except ImportError:
     try:
         import tomllib as tomli
     except ImportError:
-        print("Error: tomli required. Install with: pip install tomli")
+        print("Error: tomli required. Install with: pip install tomli", file=sys.stderr)
         sys.exit(1)
 try:
     import tomli_w
 except ImportError:
-    print("Error: tomli-w required. Install with: pip install tomli-w")
+    print("Error: tomli-w required. Install with: pip install tomli-w", file=sys.stderr)
     sys.exit(1)
 try:
     import requests
 except ImportError:
-    print("Error: requests required. Install with: pip install requests")
+    print("Error: requests required. Install with: pip install requests", file=sys.stderr)
     sys.exit(1)
 
 
 AGENTBEATS_API_URL = "https://agentbeats.dev/api/agents"
 
-COMPOSE_PATH = "docker-compose.yml"
-A2A_SCENARIO_PATH = "a2a-scenario.toml"
-ENV_PATH = ".env.example"
+# Determine root relative to script location
+SCRIPT_DIR = Path(__file__).parent
+COMPOSE_PATH = SCRIPT_DIR / "docker-compose.yml"
+A2A_SCENARIO_PATH = SCRIPT_DIR / "a2a-scenario.toml"
+ENV_PATH = SCRIPT_DIR / ".env.example"
 
 DEFAULT_PORT = 9009
+PARTICIPANT_START_PORT = 9010
 DEFAULT_ENV_VARS = {"PYTHONUNBUFFERED": "1"}
 
 
@@ -50,13 +53,13 @@ def fetch_agent_info(agentbeats_id: str) -> dict:
         response.raise_for_status()
         return response.json()
     except requests.exceptions.HTTPError as e:
-        print(f"Error: Failed to fetch agent {agentbeats_id}: {e}")
+        print(f"Error: Failed to fetch agent {agentbeats_id}: {e}", file=sys.stderr)
         sys.exit(1)
     except requests.exceptions.JSONDecodeError:
-        print(f"Error: Invalid JSON response for agent {agentbeats_id}")
+        print(f"Error: Invalid JSON response for agent {agentbeats_id}", file=sys.stderr)
         sys.exit(1)
     except requests.exceptions.RequestException as e:
-        print(f"Error: Request failed for agent {agentbeats_id}: {e}")
+        print(f"Error: Request failed for agent {agentbeats_id}: {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -66,19 +69,28 @@ def resolve_image(agent: dict, name: str) -> None:
     has_id = "agentbeats_id" in agent and agent["agentbeats_id"]
 
     if has_image and has_id:
-        print(f"Error: {name} has both 'image' and 'agentbeats_id' - use one or the other")
+        print(f"Error: {name} has both 'image' and 'agentbeats_id' - use one or the other", file=sys.stderr)
         sys.exit(1)
     elif has_image:
         if os.environ.get("GITHUB_ACTIONS"):
-            print(f"Error: {name} requires 'agentbeats_id' for GitHub Actions (use 'image' for local testing only)")
+            print(f"Error: {name} requires 'agentbeats_id' for GitHub Actions (use 'image' for local testing only)", file=sys.stderr)
             sys.exit(1)
         print(f"Using {name} image: {agent['image']}")
     elif has_id:
-        info = fetch_agent_info(agent["agentbeats_id"])
-        agent["image"] = info["docker_image"]
-        print(f"Resolved {name} image: {agent['image']}")
+        try:
+            info = fetch_agent_info(agent["agentbeats_id"])
+            agent["image"] = info["docker_image"]
+            print(f"Resolved {name} image: {agent['image']}")
+        except SystemExit:
+            # If agentbeats_id resolution fails, check for fallback image
+            if "image" in agent:
+                print(f"Using fallback {name} image: {agent['image']}")
+            else:
+                print(f"Error: {name} agentbeats_id '{agent['agentbeats_id']}' not found and no fallback image provided", file=sys.stderr)
+                print(f"For local testing, add an 'image' field to the {name} configuration", file=sys.stderr)
+                sys.exit(1)
     else:
-        print(f"Error: {name} must have either 'image' or 'agentbeats_id' field")
+        print(f"Error: {name} must have either 'image' or 'agentbeats_id' field", file=sys.stderr)
         sys.exit(1)
 
 
@@ -96,8 +108,8 @@ def parse_scenario(scenario_path: Path) -> dict[str, Any]:
     names = [p.get("name") for p in participants]
     duplicates = [name for name in set(names) if names.count(name) > 1]
     if duplicates:
-        print(f"Error: Duplicate participant names found: {', '.join(duplicates)}")
-        print("Each participant must have a unique name.")
+        print(f"Error: Duplicate participant names found: {', '.join(duplicates)}", file=sys.stderr)
+        print("Each participant must have a unique name.", file=sys.stderr)
         sys.exit(1)
 
     for participant in participants:
@@ -149,7 +161,7 @@ services:
     container_name: agentbeats-client
     volumes:
       - ./a2a-scenario.toml:/app/scenario.toml
-      - ./output:/app/output
+      - ./results:/app/output
     command: ["scenario.toml", "output/results.json"]
     depends_on:{client_depends}
     networks:
@@ -198,10 +210,10 @@ def generate_docker_compose(scenario: dict[str, Any]) -> str:
         PARTICIPANT_TEMPLATE.format(
             name=p["name"],
             image=p["image"],
-            port=DEFAULT_PORT,
+            port=PARTICIPANT_START_PORT + i,
             env=format_env_vars(p.get("env", {}))
         )
-        for p in participants
+        for i, p in enumerate(participants)
     ])
 
     all_services = ["green-agent"] + participant_names
@@ -224,11 +236,11 @@ def generate_a2a_scenario(scenario: dict[str, Any]) -> str:
     participants = scenario.get("participants", [])
 
     participant_lines = []
-    for p in participants:
+    for i, p in enumerate(participants):
         lines = [
             f"[[participants]]",
             f'role = "{p["name"]}"',
-            f'endpoint = "http://{p["name"]}:{DEFAULT_PORT}"',
+            f'endpoint = "http://{p["name"]}:{PARTICIPANT_START_PORT + i}"',
         ]
         if p.get("agentbeats_id"):
             lines.append(f'agentbeats_id = "{p["agentbeats_id"]}"')
@@ -279,7 +291,7 @@ def main():
     args = parser.parse_args()
 
     if not args.scenario.exists():
-        print(f"Error: {args.scenario} not found")
+        print(f"Error: {args.scenario} not found", file=sys.stderr)
         sys.exit(1)
 
     scenario = parse_scenario(args.scenario)
