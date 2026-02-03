@@ -155,7 +155,22 @@ services:
     networks:
       - agent-network
 
-{participant_services}  agentbeats-client:
+{participant_services}  fhir-server:
+    image: jyxsu6/medagentbench:latest
+    platform: linux/amd64
+    container_name: medagentbench-fhir
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/fhir/metadata"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - agent-network
+
+  agentbeats-client:
     image: ghcr.io/agentbeats/agentbeats-client:v1.0.0
     platform: linux/amd64
     container_name: agentbeats-client
@@ -212,15 +227,15 @@ def generate_docker_compose(scenario: dict[str, Any]) -> str:
             name=p["name"],
             image=p["image"],
             port=PARTICIPANT_START_PORT + i,
-            env=format_env_vars(p.get("env", {}))
+            env=format_env_vars({**p.get("env", {}), "MCP_FHIR_API_BASE": "http://medagentbench-fhir:8080/fhir/"})
         )
         for i, p in enumerate(participants)
     ])
 
-    all_services = ["green-agent"] + participant_names
+    all_services = ["green-agent", "fhir-server"] + participant_names
 
     # Handle case with no participants
-    green_depends = format_depends_on(participant_names) if participant_names else "\n      {}"
+    green_depends = format_depends_on(participant_names + ["fhir-server"]) if participant_names else format_depends_on(["fhir-server"])
 
     return COMPOSE_TEMPLATE.format(
         green_image=green["image"],
