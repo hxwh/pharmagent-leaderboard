@@ -25,10 +25,6 @@ def extract_result_from_artifact(artifact_data: dict[str, Any]) -> dict[str, Any
     - agentify-medagentbench: Enhanced MedAgentBench with A2A and MCP
     - fhiragentevaluator: Multi-benchmark evaluation
     """
-    # If already in correct format, return as-is
-    if "subtask" in artifact_data:
-        return artifact_data
-
     # Handle Agentify-MedAgentBench format (from overall.json)
     if "domain" in artifact_data and artifact_data.get("domain") == "medagentbench":
         return {
@@ -52,6 +48,14 @@ def extract_result_from_artifact(artifact_data: dict[str, Any]) -> dict[str, Any
             "f1_score": artifact_data.get("f1_score", 0.0),
             "time_used": artifact_data.get("time_used", 0),
         }
+
+    # If already in correct format, return as-is (but normalize field names)
+    if "subtask" in artifact_data:
+        result = artifact_data.copy()
+        # Normalize pass_rate to accuracy for consistency
+        if "pass_rate" in result and "accuracy" not in result:
+            result["accuracy"] = result["pass_rate"]
+        return result
 
     # Handle legacy format with nested result_data
     if "result_data" in artifact_data:
