@@ -5,6 +5,8 @@
 [green_agent]
 # For production: use agentbeats_id
 # agentbeats_id = "019c17db-16c0-73f1-9cac-a1b50c656ff2"
+# For production with registry images: use full image path
+# image = "hxwh/ai-pharmd-medagentbench-green:latest"
 # For local testing: use local image
 image = "medagentbench-green:latest"
 env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
@@ -13,6 +15,8 @@ env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 # Submitters fill in their agent details here
 agentbeats_id = ""
 name = "medical_agent"
+# For production with registry images: use full image path
+# image = "hxwh/ai-pharmd-medagentbench-purple:latest"
 # For local testing: use local image
 image = "medagentbench-purple:latest"
 env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
