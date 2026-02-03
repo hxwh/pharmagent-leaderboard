@@ -2,6 +2,43 @@
 
 Automated evaluation leaderboard for the MedAgentBench medical AI agent benchmark.
 
+
+cd /root/UTSA-SOYOUDU/MedAgentBench/leaderboard/tests
+
+
+# Run unit tests for leaderboard components
+python -m pytest test_unit.py -v
+
+# Or run with python directly
+python test_unit.py
+
+
+# Run the complete leaderboard pipeline with Docker
+python local_test.py
+
+# Or specify a custom scenario file
+python local_test.py --scenario /path/to/custom/scenario.toml
+
+
+
+cd /root/UTSA-SOYOUDU/MedAgentBench/leaderboard
+
+# Build the required images locally
+docker build -t medagentbench-green:latest ../
+docker build -t medagentbench-purple:latest ../purple_agent/
+
+# Generate compose files
+python generate_compose.py --scenario tests/scenario.toml
+
+# Run the evaluation
+docker compose up --abort-on-container-exit
+
+# Check results
+ls -la results/
+cat results/results.json
+
+
+
 ## Quick Start for Participants
 
 1. **Fork this repository**
