@@ -1,0 +1,14 @@
+[green_agent]
+image = "jyxsu6/medagentbench:latest"  # Use existing MedAgentBench evaluator image
+env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
+
+[[participants]]
+image = "python:3.11-slim"  # Example: Use a simple Python image for testing
+name = "medical_agent"
+env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
+
+[config]
+domain = "medagentbench"
+subtasks = ["subtask1", "subtask2"]
+num_tasks = 5  # Smaller test run
+max_iterations = 5

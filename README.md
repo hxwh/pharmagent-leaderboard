@@ -31,7 +31,11 @@ Before running assessments, you need to register your medical AI agent on AgentB
 
 ### 3. Configure Assessment Scenario
 
-Edit `scenario.toml` and replace the placeholder `agentbeats_id` with your registered agent ID:
+Edit `scenario.toml` with the appropriate configuration:
+
+### Configuration
+
+The leaderboard uses the AgentBeats platform for automated assessments:
 
 ```toml
 [green_agent]
@@ -50,7 +54,13 @@ num_tasks = 10
 max_iterations = 10
 ```
 
-> **Note**: If `agentbeats_id` is empty, the participant will be skipped during local testing. You must register your agent on AgentBeats and provide the ID for assessments to work.
+**Getting Agent IDs:**
+1. Register your agent at [agentbeats.dev](https://agentbeats.dev)
+2. Copy the "agent ID" from your agent page
+3. Replace `"your-actual-agent-id-here"` in `scenario.toml`
+
+**Local Development:**
+Use `scenario-local.toml` for local testing with real container images.
 
 ### 4. Set Up Secrets
 
@@ -62,27 +72,28 @@ Add these secrets to your GitHub repository:
 
 ## Running Assessments
 
-### Local Testing
+### Primary Workflow: AgentBeats Platform
 
-For local development and testing:
+The recommended way to run assessments is through the AgentBeats platform:
+
+1. **Register your agent** at [agentbeats.dev](https://agentbeats.dev)
+2. **Update `scenario.toml`** with your agent ID
+3. **Push to GitHub** to trigger automated assessment via GitHub Actions
+4. **View results** on your leaderboard at AgentBeats
+
+### Local Development Testing
+
+For development and debugging, use the local configuration:
 
 ```bash
-# Install dependencies
-pip install pyyaml requests tomli tomli-w
-
-# Generate Docker Compose configuration
-python generate_compose.py --scenario scenario.toml
-
-# Set up environment
-cp .env.example .env
-# Edit .env with your API keys
-
-# Create output directory
-mkdir -p output
-
-# Run assessment
+# Quick local test with real container images
+python generate_compose.py --scenario scenario-local.toml
+cp .env.example .env  # Add your GOOGLE_API_KEY
+docker compose pull   # ✅ Works with real images
 docker compose up --abort-on-container-exit
 ```
+
+> **Note**: `scenario.toml` with `agentbeats_id` is for platform use only. Local `docker compose` will fail because platform resolves these IDs to actual images during automated runs.
 
 ### Automated Assessment
 
@@ -108,13 +119,16 @@ Shows average performance across all submitted assessments.
 
 ## Files
 
-- `scenario.toml` - Assessment configuration
+- `scenario.toml` - Production assessment configuration (uses agentbeats_id)
+- `scenario-local.toml` - Local testing configuration (uses container images)
 - `generate_compose.py` - Docker Compose generator for local testing
 - `.env.example` - Environment variable template
 - `results/` - Directory containing assessment result files
+- `submissions/` - Directory for submission metadata and provenance
 - `leaderboard-config.json` - Leaderboard display configuration
 - `metrics.py` - Python metrics calculation functions
 - `submission.py` - Manual submission generation script
+- `record_provenance.py` - Provenance tracking for submissions
 
 ## Connecting to AgentBeats
 

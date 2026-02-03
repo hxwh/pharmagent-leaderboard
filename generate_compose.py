@@ -155,10 +155,20 @@ def main():
     print("2. For local testing, ensure your images exist or use placeholder images")
     print("3. Run: docker compose up --abort-on-container-exit")
 
-    if any('agentbeats/' in str(service.get('image', '')) for service in services.values()):
-        print("\nℹ️  Note: Using AgentBeats platform images.")
-        print("   - These images are resolved by the AgentBeats platform during assessment runs")
-        print("   - For local development, consider using direct image references instead")
+    agentbeats_images = [service.get('image', '') for service in services.values()
+                        if 'agentbeats/' in str(service.get('image', ''))]
+
+    if agentbeats_images:
+        print(f"\nℹ️  AgentBeats Platform Configuration Detected")
+        print(f"   Found {len(agentbeats_images)} agent(s) using platform resolution:")
+        for img in agentbeats_images:
+            print(f"   - {img}")
+        print("\n   ✅ This is correct for AgentBeats platform usage!")
+        print("   - Platform resolves agentbeats_id to real images during automated runs")
+        print("   - docker compose pull will fail locally (expected behavior)")
+        print("   - Use GitHub Actions workflow for actual assessments")
+        print("\n   For local development testing:")
+        print("   python generate_compose.py --scenario scenario-local.toml")
     print("3. Check output/ directory for results")
 
 if __name__ == '__main__':
