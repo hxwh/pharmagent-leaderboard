@@ -239,7 +239,7 @@ def generate_a2a_scenario(scenario: dict[str, Any]) -> str:
     participant_lines = []
     for i, p in enumerate(participants):
         lines = [
-            f"[[purple_agent]]",
+            f"[[participants]]",
             f'role = "{p["name"]}"',
             f'endpoint = "http://{p["name"]}:{PARTICIPANT_START_PORT + i}"',
         ]
