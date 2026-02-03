@@ -1,26 +1,15 @@
-# For production assessments (use agentbeats_id):
 # AgentBeats Platform Configuration
 # This file uses agentbeats_id values that are resolved by the AgentBeats platform
-# during automated assessment runs. For local testing, use scenario-local.toml
+# during automated assessment runs in GitHub Actions
 
 [green_agent]
 agentbeats_id = "019c17db-16c0-73f1-9cac-a1b50c656ff2"  # MedAgentBench evaluator
 env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 
 [[participants]]
-agentbeats_id = "019c17ea-ac28-7fa2-8716-b3f79eb2913c"  # 🔴 REQUIRED: Replace with your agent ID from agentbeats.dev
+agentbeats_id = ""  # 🔴 REQUIRED: Replace with your agent ID from agentbeats.dev
 name = "medical_agent"
 env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
-
-# For local testing (uncomment and use actual container images):
-# [green_agent]
-# image = "ghcr.io/your-org/medagentbench-evaluator:latest"
-# env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
-#
-# [[participants]]
-# image = "your-local-agent:latest"
-# name = "medical_agent"
-# env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 
 [config]
 domain = "medagentbench"

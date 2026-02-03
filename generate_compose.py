@@ -2,7 +2,8 @@
 """
 Generate Docker Compose configuration for MedAgentBench Leaderboard
 
-Based on AgentBeats template for local testing and assessment running.
+Used by GitHub Actions workflow for AgentBeats platform assessment runs.
+Not intended for local development - use AgentBeats platform instead.
 """
 
 import argparse
@@ -119,8 +120,8 @@ def save_compose_file(compose_config: Dict[str, Any], output_path: Path):
         sys.exit(1)
 
 def main():
-    """Main entry point."""
-    parser = argparse.ArgumentParser(description='Generate Docker Compose for MedAgentBench assessment')
+    """Main entry point for GitHub Actions workflow. Not for local use."""
+    parser = argparse.ArgumentParser(description='Generate Docker Compose for AgentBeats platform assessment')
     parser.add_argument('--scenario', type=Path, default=Path('scenario.toml'),
                        help='Path to scenario.toml file')
     parser.add_argument('--output', type=Path, default=Path('docker-compose.yml'),
@@ -145,31 +146,28 @@ def main():
 
     # Validate that we have at least one service
     if not services:
-        print("Error: No valid services configured. Check your scenario.toml for image or agentbeats_id fields.")
+        print("Error: No valid services configured. Check your scenario.toml for agentbeats_id fields.")
+        print("This script is for AgentBeats platform use only - local testing requires real Docker images.")
         sys.exit(1)
 
     print(f"✓ Generated {len(services)} services: {', '.join(services.keys())}")
 
-    print("\nNext steps:")
-    print("1. Copy .env.example to .env and fill in your API keys")
-    print("2. For local testing, ensure your images exist or use placeholder images")
-    print("3. Run: docker compose up --abort-on-container-exit")
-
+    # Check for platform usage
     agentbeats_images = [service.get('image', '') for service in services.values()
                         if 'agentbeats/' in str(service.get('image', ''))]
 
     if agentbeats_images:
-        print(f"\nℹ️  AgentBeats Platform Configuration Detected")
-        print(f"   Found {len(agentbeats_images)} agent(s) using platform resolution:")
-        for img in agentbeats_images:
-            print(f"   - {img}")
-        print("\n   ✅ This is correct for AgentBeats platform usage!")
-        print("   - Platform resolves agentbeats_id to real images during automated runs")
-        print("   - docker compose pull will fail locally (expected behavior)")
-        print("   - Use GitHub Actions workflow for actual assessments")
-        print("\n   For local development testing:")
-        print("   python generate_compose.py --scenario scenario-local.toml")
-    print("3. Check output/ directory for results")
+        print("\n✅ AgentBeats Platform Configuration Confirmed")
+        print(f"   Ready for automated assessment with {len(agentbeats_images)} registered agent(s)")
+        print("   GitHub Actions will resolve agentbeats_id to container images")
+    else:
+        print("\n❌ Local Development Configuration Detected")
+        print("   This script is for AgentBeats platform use only")
+        print("   For local testing, use direct Docker image references")
+        print("   Example: image = 'your-registry/your-image:latest'")
+        sys.exit(1)
+
+    print("\n🚀 Ready for GitHub Actions workflow execution")
 
 if __name__ == '__main__':
     main()

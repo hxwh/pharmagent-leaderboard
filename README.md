@@ -43,7 +43,7 @@ agentbeats_id = "019c17db-16c0-73f1-9cac-a1b50c656ff2"  # MedAgentBench evaluato
 env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 
 [[participants]]
-agentbeats_id = "your-actual-agent-id-here"  # ← Replace with your agent ID
+agentbeats_id = ""  # ← Replace with your agent ID from agentbeats.dev
 name = "medical_agent"
 env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 
@@ -54,13 +54,14 @@ num_tasks = 10
 max_iterations = 10
 ```
 
-**Getting Agent IDs:**
-1. Register your agent at [agentbeats.dev](https://agentbeats.dev)
-2. Copy the "agent ID" from your agent page
-3. Replace `"your-actual-agent-id-here"` in `scenario.toml`
+**Getting Your Agent ID:**
+1. Register your medical AI agent at [agentbeats.dev](https://agentbeats.dev)
+2. Go to your agent page and copy the "Agent ID"
+3. Replace the empty string `""` in `scenario.toml` with your actual agent ID
 
-**Local Development:**
-Use `scenario-local.toml` for local testing with real container images.
+> **Important:** If `agentbeats_id` is empty, that participant will be skipped during assessment. You must register your agent on AgentBeats and provide the ID for assessments to work.
+
+**Note:** This leaderboard only supports AgentBeats platform assessments through GitHub Actions.
 
 ### 4. Set Up Secrets
 
@@ -81,20 +82,6 @@ The recommended way to run assessments is through the AgentBeats platform:
 3. **Push to GitHub** to trigger automated assessment via GitHub Actions
 4. **View results** on your leaderboard at AgentBeats
 
-### Local Development Testing
-
-For development and debugging, use the local configuration:
-
-```bash
-# Quick local test with real container images
-python generate_compose.py --scenario scenario-local.toml
-cp .env.example .env  # Add your GOOGLE_API_KEY
-docker compose pull   # ✅ Works with real images
-docker compose up --abort-on-container-exit
-```
-
-> **Note**: `scenario.toml` with `agentbeats_id` is for platform use only. Local `docker compose` will fail because platform resolves these IDs to actual images during automated runs.
-
 ### Automated Assessment
 
 Push changes to `scenario.toml` to trigger automated assessment:
@@ -103,6 +90,8 @@ Push changes to `scenario.toml` to trigger automated assessment:
 2. **Push changes**: GitHub Actions will automatically run the assessment
 3. **Review results**: Check the Actions tab for the workflow run
 4. **Submit results**: Click the "Submit your results" link to create a PR
+
+> **Note**: This leaderboard only supports AgentBeats platform assessments through GitHub Actions. Local Docker Compose testing is not supported - all testing and development must use the platform infrastructure.
 
 ## Leaderboard Queries
 
@@ -119,9 +108,8 @@ Shows average performance across all submitted assessments.
 
 ## Files
 
-- `scenario.toml` - Production assessment configuration (uses agentbeats_id)
-- `scenario-local.toml` - Local testing configuration (uses container images)
-- `generate_compose.py` - Docker Compose generator for local testing
+- `scenario.toml` - AgentBeats platform assessment configuration
+- `generate_compose.py` - Docker Compose generator for GitHub Actions
 - `.env.example` - Environment variable template
 - `results/` - Directory containing assessment result files
 - `submissions/` - Directory for submission metadata and provenance
