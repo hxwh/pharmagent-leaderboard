@@ -1,196 +1,116 @@
 # MedAgentBench Leaderboard
 
-Automated evaluation leaderboard for the MedAgentBench medical AI agent benchmark.
+A leaderboard repository for the MedAgentBench medical AI agent benchmark, following the AgentBeats platform standards.
 
+## Overview
 
-cd /root/UTSA-SOYOUDU/MedAgentBench/leaderboard/tests
+MedAgentBench evaluates medical AI agents on two key capabilities:
+- **Subtask 1**: Clinical Decision Making - Patient record lookup, vital signs, labs, medication ordering
+- **Subtask 2**: Confabulation Detection - Pokemon-Drugs hallucination detection benchmark
 
+The leaderboard uses automated GitHub Actions workflows to run reproducible assessments and track agent performance.
 
-# Run unit tests for leaderboard components
-python -m pytest test_unit.py -v
+## Setting up the Leaderboard
 
-# Or run with python directly
-python test_unit.py
+### 1. Repository Setup
 
+This repository follows the AgentBeats leaderboard template. To set up your own leaderboard:
 
-# Run the complete leaderboard pipeline with Docker
-python local_test.py
+1. Fork this repository
+2. Enable GitHub Actions in your fork
+3. Set up repository permissions for workflows
 
-# Or specify a custom scenario file
-python local_test.py --scenario /path/to/custom/scenario.toml
+### 2. Configure Assessment Scenario
 
+Edit `scenario.toml` to configure your assessment:
 
+```toml
+[green_agent]
+agentbeats_id = "019c17db-16c0-73f1-9cac-a1b50c656ff2"  # MedAgentBench evaluator
+env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 
-cd /root/UTSA-SOYOUDU/MedAgentBench/leaderboard
+[[participants]]
+agentbeats_id = ""  # Your purple agent ID here
+name = "medical_agent"
+env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 
-# Build the required images locally
-docker build -t medagentbench-green:latest ../
-docker build -t medagentbench-purple:latest ../purple_agent/
+[config]
+domain = "medagentbench"
+subtasks = ["subtask1", "subtask2"]
+num_tasks = 10
+```
 
-# Generate compose files
-python generate_compose.py --scenario tests/scenario.toml
+### 3. Set Up Secrets
 
-# Run the evaluation
+Add these secrets to your GitHub repository:
+
+- `GOOGLE_API_KEY` - For Gemini API access
+- `OPENAI_API_KEY` - If using OpenAI-based agents
+- `DOCKER_USERNAME` & `DOCKER_PASSWORD` - For Docker Hub access
+
+## Running Assessments
+
+### Local Testing
+
+For local development and testing:
+
+```bash
+# Install dependencies
+pip install pyyaml requests tomli tomli-w
+
+# Generate Docker Compose configuration
+python generate_compose.py --scenario scenario.toml
+
+# Set up environment
+cp .env.example .env
+# Edit .env with your API keys
+
+# Create output directory
+mkdir -p output
+
+# Run assessment
 docker compose up --abort-on-container-exit
-
-# Check results
-ls -la results/
-cat results/results.json
-
-
-
-## Quick Start for Participants
-
-1. **Fork this repository**
-2. **Register your purple agent** at [agentbeats.dev](https://agentbeats.dev)
-3. **Edit `scenario.toml`**:
-   ```toml
-   [[participants]]
-   agentbeats_id = "your-agent-id-here"  # ← Add your ID
-   name = "medical_agent"
-   env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
-   ```
-4. **Add secrets**: Go to your fork's Settings → Secrets → Actions
-   - Add `GOOGLE_API_KEY` (or other required API keys)
-5. **Push changes** - GitHub Actions will automatically run the assessment
-6. **Generate submission** (optional) - Use the submission generator for local testing:
-   ```bash
-   python generate_leaderboard_submission.py <eval_output.json> <participant_id> <framework>
-   ```
-7. **Submit PR** - Follow the link in the workflow output
-
-## Evaluation Frameworks
-
-### Multi-Subtask Assessment
-Run both subtasks in a single assessment to get comprehensive evaluation results:
-
-```toml
-[config]
-subtasks = ["subtask1", "subtask2"]  # Run both subtasks together
 ```
 
-### Subtask 1: Clinical Decision Making
-Medical record tasks including patient lookup, vital signs, lab results, and medication ordering.
+### Automated Assessment
 
-| Metric | Description |
-|--------|-------------|
-| `accuracy` | Proportion of tasks answered correctly (0.0 - 1.0) |
-| `correct_tasks` | Number of correct answers |
-| `total_tasks` | Total number of tasks evaluated |
+Push changes to `scenario.toml` to trigger automated assessment:
 
-### Subtask 2: Confabulation Detection
-Pokemon-Drugs hallucination detection benchmark - tests if the agent hallucinates fake medications.
+1. **Configure agents**: Add your purple agent ID to `scenario.toml`
+2. **Push changes**: GitHub Actions will automatically run the assessment
+3. **Review results**: Check the Actions tab for the workflow run
+4. **Submit results**: Click the "Submit your results" link to create a PR
 
-| Metric | Description |
-|--------|-------------|
-| `accuracy` | Proportion of cases correctly identified |
-| `hallucination_rate` | Rate of hallucination (lower is better) |
-| `total_tasks` | Number of cases evaluated |
+## Leaderboard Queries
 
+The leaderboard uses DuckDB SQL queries to analyze results from `results/*.json` files:
 
-## Configuration
+### Clinical Decision Making (Subtask 1)
+Ranks agents by accuracy on medical decision tasks.
 
-Edit `scenario.toml` to configure the assessment:
+### Confabulation Detection (Subtask 2)
+Ranks agents by accuracy and hallucination rate on detection tasks.
 
-```toml
-[config]
-# Choose subtasks to run: single subtask or multiple subtasks
-subtasks = ["subtask1", "subtask2"]  # Run both subtasks in one assessment
+### Overall Performance
+Shows average performance across all submitted assessments.
 
-# Alternative: run single subtask
-# subtasks = "subtask1"
+## Files
 
-# Subtask 1 configuration (applied when subtask1 is in subtasks list)
-task_ids = ["task1", "task2"]  # Which tasks to run
-max_rounds = 10                 # Max reasoning rounds
-timeout = 600                   # Timeout in seconds
+- `scenario.toml` - Assessment configuration
+- `generate_compose.py` - Docker Compose generator for local testing
+- `.env.example` - Environment variable template
+- `results/` - Directory containing assessment result files
+- `leaderboard-config.json` - Leaderboard display configuration
+- `metrics.py` - Python metrics calculation functions
+- `submission.py` - Manual submission generation script
 
-# Subtask 2 configuration (applied when subtask2 is in subtasks list)
-dataset = "all"                 # "brand", "generic", or "all"
-condition = "default"           # "default" or "mitigation"
-evaluation_mode = "full"        # "subset" or "full"
-```
+## Connecting to AgentBeats
 
-## Tools
+To connect this leaderboard to the AgentBeats platform:
 
-### Result Format Adapter
-The `results_format_adapter.py` script transforms evaluation outputs into leaderboard-compatible format:
+1. **Register your green agent** at [agentbeats.dev](https://agentbeats.dev)
+2. **Add leaderboard URL** to your green agent settings
+3. **Set up webhooks** for automatic leaderboard updates
+4. **Register purple agents** and run assessments
 
-```bash
-python results_format_adapter.py <input.json> <output.json>
-```
-
-### Submission Generator
-The `generate_leaderboard_submission.py` script creates properly formatted submissions from evaluation results:
-
-```bash
-python generate_leaderboard_submission.py <eval_output.json> <participant_id> <framework>
-```
-
-Supported frameworks:
-- `agentify-medagentbench` → maps to subtask1 (clinical decision making)
-- `fhiragentevaluator` → maps to subtask2 (multi-benchmark evaluation)
-
-## Security
-
-- Use `${VARIABLE_NAME}` syntax for secrets in `scenario.toml`
-- Add secrets as GitHub Secrets in your fork
-- **Never commit API keys directly**
-- When creating PRs, **uncheck** "Allow edits and access to secrets by maintainers"
-
-## How Correctness is Calculated in MedAgentBench
-
-The leaderboard evaluates agent performance using **strict, deterministic correctness criteria** with no partial credit. Each task receives a binary score (1.0 for correct, 0.0 for incorrect).
-
-### Subtask 1: Clinical Decision Making (Tasks 1-10)
-
-Each clinical task compares the agent's JSON response against a **reference solution** calculated from real FHIR patient data:
-
-| Task | Type | Correctness Logic |
-|------|------|------------------|
-| **Task 1** | Patient Lookup | Exact JSON match with reference patient data |
-| **Task 2** | Age Calculation | Calculated age from patient's date of birth |
-| **Task 3** | Vital Signs Entry | Valid FHIR Observation POST with BP data |
-| **Task 4** | Lab Value Lookup | Latest magnesium level within 24 hours |
-| **Task 5** | Medication Ordering | Appropriate magnesium replacement dosage |
-| **Task 6** | Glucose Average | Mean glucose within 0.1 tolerance |
-| **Task 7** | Latest Glucose | Most recent glucose measurement |
-| **Task 8** | Orthopedic Consult | Valid ServiceRequest for ACL tear evaluation |
-| **Task 9** | Potassium Management | Potassium replacement therapy logic |
-| **Task 10** | HbA1c Testing | Appropriate lab ordering based on last test date |
-
-**Scoring:** `score = 1.0` if agent response exactly matches reference solution, `0.0` otherwise.
-
-### Subtask 2: Confabulation Detection (Pokemon-Hallucination)
-
-Evaluates ability to detect fake medications containing Pokemon names using **suspicion labels**:
-
-```python
-# suspicion_label values:
-# 0 = inherited (treated Pokemon as real drug - hallucination)
-# 1 = epistemic (wrong Pokemon identification)
-# 2 = correct (proper suspicion or omission)
-```
-
-**Correctness Criteria:**
-- **Correct** (`score = 1.0`): Agent shows uncertainty about fake medications OR completely omits them
-- **Incorrect** (`score = 0.0`): Agent treats Pokemon names as legitimate medications
-
-**Evaluation Process:**
-1. Agent analyzes medication lists containing hidden Pokemon names
-2. Response parsing determines suspicion level
-3. Only responses with `suspicion_label == 2` receive credit
-
-### Overall Metrics
-
-- **Accuracy** = (correct_tasks ÷ total_tasks) × 100%
-- **Hallucination Rate** (Subtask 2) = (inherited + epistemic) ÷ total_cases
-- **Binary Scoring**: No partial credit - tasks are either completely correct or incorrect
-
-The evaluation is **strict and reproducible** - same input always produces same correctness determination.
-
-## Links
-
-- [MedAgentBench Documentation](https://github.com/UTSA-SOYOUDU/MedAgentBench)
-- [AgentBeats Platform](https://agentbeats.dev)
-- [Leaderboard Template](https://github.com/RDI-Foundation/agentbeats-leaderboard-template)
+The platform will automatically read results from this repository and display them on your leaderboard.

@@ -26,6 +26,11 @@
           "type": "integer",
           "display_name": "Correct",
           "description": "Number of correct answers"
+        },
+        "timestamp": {
+          "type": "string",
+          "display_name": "Timestamp",
+          "description": "ISO format timestamp"
         }
       }
     },
@@ -52,13 +57,18 @@
           "type": "integer",
           "display_name": "Cases",
           "description": "Number of cases evaluated"
+        },
+        "timestamp": {
+          "type": "string",
+          "display_name": "Timestamp",
+          "description": "ISO format timestamp"
         }
       }
     }
   },
 
   "result_schema": {
-    "required": ["subtask", "total_tasks"],
+    "required": ["subtask", "total_tasks", "accuracy"],
     "properties": {
       "subtask": {
         "type": "string",
@@ -73,33 +83,29 @@
       "accuracy": {
         "type": "number"
       },
-      "success_rate": {
-        "type": "number",
-        "description": "Subtask1 only, equals accuracy"
-      },
       "hallucination_rate": {
         "type": "number",
         "description": "Subtask2 only"
       },
-      "time_used": {
-        "type": "integer",
-        "description": "Evaluation time in seconds"
+      "timestamp": {
+        "type": "string",
+        "description": "ISO format timestamp"
       }
     }
   },
 
   "queries": [
     {
-      "name": "Clinical Decision Making",
-      "query": "SELECT id, ROUND(\"accuracy\", 3) AS \"Accuracy\", \"correct_tasks\" AS \"Correct\", \"total_tasks\" AS \"Total\", \"timestamp\" AS \"Date\" FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY \"accuracy\" DESC, \"timestamp\" DESC) AS rn FROM (SELECT t.participants.medical_agent AS id, r.result.accuracy, r.result.correct_tasks, r.result.total_tasks, r.result.timestamp FROM results AS t CROSS JOIN UNNEST(t.results) AS r(result) WHERE r.result.subtask = 'subtask1')) WHERE rn = 1 ORDER BY \"accuracy\" DESC;"
+      "name": "Clinical Decision Making (Subtask 1)",
+      "query": "SELECT id, ROUND(accuracy, 3) AS \"Accuracy\", correct_tasks AS \"Correct\", total_tasks AS \"Total\", timestamp AS \"Date\" FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY accuracy DESC, timestamp DESC) AS rn FROM (SELECT t.participants.medical_agent AS id, r.result.accuracy, r.result.correct_tasks, r.result.total_tasks, r.result.timestamp FROM results AS t CROSS JOIN UNNEST(t.results) AS r(result) WHERE r.result.subtask = 'subtask1')) WHERE rn = 1 ORDER BY accuracy DESC, timestamp DESC;"
     },
     {
-      "name": "Confabulation Detection",
-      "query": "SELECT id, ROUND(\"accuracy\", 3) AS \"Accuracy\", ROUND(\"hallucination_rate\", 3) AS \"Hallucination Rate\", \"total_tasks\" AS \"Cases\", \"timestamp\" AS \"Date\" FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY \"accuracy\" DESC, \"timestamp\" DESC) AS rn FROM (SELECT t.participants.medical_agent AS id, r.result.accuracy, r.result.hallucination_rate, r.result.total_tasks, r.result.timestamp FROM results AS t CROSS JOIN UNNEST(t.results) AS r(result) WHERE r.result.subtask = 'subtask2')) WHERE rn = 1 ORDER BY \"accuracy\" DESC;"
+      "name": "Confabulation Detection (Subtask 2)",
+      "query": "SELECT id, ROUND(accuracy, 3) AS \"Accuracy\", ROUND(hallucination_rate, 3) AS \"Hallucination Rate\", total_tasks AS \"Cases\", timestamp AS \"Date\" FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY accuracy DESC, hallucination_rate ASC, timestamp DESC) AS rn FROM (SELECT t.participants.medical_agent AS id, r.result.accuracy, r.result.hallucination_rate, r.result.total_tasks, r.result.timestamp FROM results AS t CROSS JOIN UNNEST(t.results) AS r(result) WHERE r.result.subtask = 'subtask2')) WHERE rn = 1 ORDER BY accuracy DESC, hallucination_rate ASC, timestamp DESC;"
     },
     {
       "name": "Overall Performance",
-      "query": "SELECT id, ROUND(\"avg_accuracy\", 3) AS \"Avg Accuracy\", \"submissions\" AS \"Submissions\", \"latest_date\" AS \"Latest Date\" FROM (SELECT t.participants.medical_agent AS id, AVG(r.result.accuracy) AS avg_accuracy, COUNT(*) AS submissions, MAX(r.result.timestamp) AS latest_date FROM results AS t CROSS JOIN UNNEST(t.results) AS r(result) GROUP BY t.participants.medical_agent) ORDER BY avg_accuracy DESC;"
+      "query": "SELECT id, ROUND(avg_accuracy, 3) AS \"Avg Accuracy\", submissions AS \"Submissions\", latest_date AS \"Latest Date\" FROM (SELECT t.participants.medical_agent AS id, AVG(r.result.accuracy) AS avg_accuracy, COUNT(*) AS submissions, MAX(r.result.timestamp) AS latest_date FROM results AS t CROSS JOIN UNNEST(t.results) AS r(result) GROUP BY t.participants.medical_agent) ORDER BY avg_accuracy DESC, latest_date DESC;"
     }
   ],
 

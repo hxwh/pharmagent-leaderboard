@@ -1,128 +1,123 @@
 #!/usr/bin/env python3
-"""Record provenance information (image digests, timestamp, and workflow metadata) for assessment results.
+"""
+Record Provenance for MedAgentBench Leaderboard
 
-AgentBeats-compatible provenance recorder for MedAgentBench leaderboard.
-Based on: https://github.com/RDI-Foundation/agentbeats-leaderboard-template
+Tracks assessment provenance and metadata for AgentBeats leaderboard.
+Based on AgentBeats leaderboard template requirements.
 """
 
-import argparse
 import json
-import os
-import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
+from typing import Dict, Any
 
-try:
-    import yaml
-except ImportError:
-    print("Error: pyyaml required. Install with: pip install pyyaml")
-    sys.exit(1)
+def record_assessment_provenance(
+    assessment_id: str,
+    scenario_config: Dict[str, Any],
+    results_path: Path,
+    output_path: Path
+) -> Dict[str, Any]:
+    """
+    Record provenance information for an assessment run.
 
+    Args:
+        assessment_id: Unique identifier for the assessment
+        scenario_config: The scenario.toml configuration used
+        results_path: Path to the assessment results file
+        output_path: Path to write the provenance record
 
-def get_image_digest(image: str) -> str:
-    """Get the RepoDigest for a docker image pulled from a registry."""
-    result = subprocess.run(
-        ["docker", "image", "inspect", image, "--format", "{{index .RepoDigests 0}}"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        print(f"Warning: Failed to inspect image '{image}': {result.stderr.strip()}")
-        return f"{image}@unknown"
-
-    digest = result.stdout.strip()
-    if not digest:
-        print(f"Warning: No registry digest found for image '{image}'")
-        return f"{image}@unknown"
-
-    return digest
-
-
-def parse_compose(compose_path: Path) -> dict:
-    """Parse docker-compose.yml."""
-    return yaml.safe_load(compose_path.read_text())
-
-
-def collect_image_digests(compose: dict) -> dict[str, str]:
-    """Collect digests for all images in the compose file."""
-    digests = {}
-
-    for name, service in compose.get("services", {}).items():
-        image = service.get("image")
-        if image:
-            digests[name] = get_image_digest(image)
-
-    return digests
-
-
-def collect_github_actions_metadata() -> dict[str, str] | None:
-    """Collect GitHub Actions run metadata when available."""
-    if not os.environ.get("GITHUB_ACTIONS"):
-        return None
-
-    env = os.environ
-    repository = env.get("GITHUB_REPOSITORY")
-    server_url = env.get("GITHUB_SERVER_URL")
-    api_url = env.get("GITHUB_API_URL")
-    run_id = env.get("GITHUB_RUN_ID")
-
-    run_url = None
-    repository_url = None
-    if repository and server_url and run_id:
-        run_url = f"{server_url}/{repository}/actions/runs/{run_id}"
-    if repository and server_url:
-        repository_url = f"{server_url}/{repository}"
-
-    run_logs_url = None
-    if repository and api_url and run_id:
-        run_logs_url = f"{api_url}/repos/{repository}/actions/runs/{run_id}/logs"
-
-    metadata = {
-        "run_url": run_url,
-        "run_logs_url": run_logs_url,
-        "ref": env.get("GITHUB_REF"),
-        "sha": env.get("GITHUB_SHA"),
-        "repository_url": repository_url,
-        "workflow_ref": env.get("GITHUB_WORKFLOW_REF"),
-        "workflow_sha": env.get("GITHUB_WORKFLOW_SHA"),
-    }
-
-    return {key: value for key, value in metadata.items() if value}
-
-
-def write_provenance(output_path: Path, image_digests: dict[str, str]) -> None:
-    """Write provenance information to a JSON file."""
-    provenance = {
-        "image_digests": image_digests,
-        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-    }
-
-    github_actions = collect_github_actions_metadata()
-    if github_actions:
-        provenance["github_actions"] = github_actions
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w") as f:
-        json.dump(provenance, f, indent=2)
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Record provenance information for assessment results")
-    parser.add_argument("--compose", type=Path, default=Path("docker-compose.yml"), help="Path to docker-compose.yml")
-    parser.add_argument("--output", type=Path, default=Path("output/provenance.json"), help="Path to output provenance JSON file")
-    args = parser.parse_args()
-
-    if not args.compose.exists():
-        print(f"Error: {args.compose} not found")
+    Returns:
+        Dict containing provenance information
+    """
+    # Load results to get basic metadata
+    try:
+        with open(results_path, 'r') as f:
+            results = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Error loading results from {results_path}: {e}")
         sys.exit(1)
 
-    compose = parse_compose(args.compose)
-    image_digests = collect_image_digests(compose)
-    write_provenance(args.output, image_digests)
+    # Extract participant information
+    participants = results.get('participants', {})
+    agent_ids = []
+    if isinstance(participants, dict):
+        agent_ids = list(participants.values())
+    elif isinstance(participants, list):
+        agent_ids = [p.get('agentbeats_id', p.get('id', 'unknown')) for p in participants]
 
-    print(f"Recorded provenance to {args.output} ({len(image_digests)} images)")
+    # Create provenance record
+    provenance = {
+        "assessment_id": assessment_id,
+        "timestamp": datetime.now().isoformat(),
+        "agentbeats_ids": agent_ids,
+        "scenario_config": scenario_config,
+        "results_summary": {
+            "total_participants": len(agent_ids),
+            "results_file": str(results_path.name),
+            "has_results": bool(results.get('results'))
+        },
+        "metadata": {
+            "generator": "MedAgentBench Leaderboard",
+            "version": "1.0.0",
+            "benchmark": "MedAgentBench",
+            "subtasks": ["subtask1", "subtask2"]
+        }
+    }
 
+    # Write provenance record
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, 'w') as f:
+        json.dump(provenance, f, indent=2, default=str)
 
-if __name__ == "__main__":
+    print(f"✓ Provenance recorded to {output_path}")
+    return provenance
+
+def main():
+    """Command-line interface for recording provenance."""
+    if len(sys.argv) != 5:
+        print("Usage: python record_provenance.py <assessment_id> <scenario.toml> <results.json> <output.json>")
+        print("")
+        print("Record provenance information for an assessment run.")
+        print("")
+        print("Arguments:")
+        print("  assessment_id    Unique identifier for the assessment")
+        print("  scenario.toml    Path to scenario configuration file")
+        print("  results.json     Path to assessment results file")
+        print("  output.json      Path to write provenance record")
+        sys.exit(1)
+
+    assessment_id = sys.argv[1]
+    scenario_path = Path(sys.argv[2])
+    results_path = Path(sys.argv[3])
+    output_path = Path(sys.argv[4])
+
+    # Load scenario config
+    try:
+        import tomllib
+        with open(scenario_path, 'rb') as f:
+            scenario_config = tomllib.load(f)
+    except ImportError:
+        try:
+            import tomli as tomllib
+            with open(scenario_path, 'rb') as f:
+                scenario_config = tomllib.load(f)
+        except ImportError:
+            print("Error: tomli or tomllib required. Install with: pip install tomli")
+            sys.exit(1)
+    except Exception as e:
+        print(f"Error loading scenario config: {e}")
+        sys.exit(1)
+
+    # Record provenance
+    provenance = record_assessment_provenance(
+        assessment_id=assessment_id,
+        scenario_config=scenario_config,
+        results_path=results_path,
+        output_path=output_path
+    )
+
+    print(f"✓ Assessment {assessment_id} provenance recorded successfully")
+
+if __name__ == '__main__':
     main()
