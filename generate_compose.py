@@ -33,49 +33,57 @@ def load_scenario(scenario_path: Path) -> Dict[str, Any]:
         print(f"Error: Failed to parse scenario file: {e}")
         sys.exit(1)
 
-def generate_compose_config(scenario: Dict[str, Any]) -> Dict[str, Any]:
+def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], Dict[str, Any]]:
     """Generate Docker Compose configuration from scenario."""
 
     services = {}
 
     # Green agent (evaluator) service
     green_agent = scenario.get('green_agent', {})
-    if 'image' in green_agent:
+    if 'image' in green_agent and green_agent['image']:
         services['green_agent'] = {
             'image': green_agent['image'],
             'environment': green_agent.get('env', {}),
             'ports': ['8000:8000'],
             'volumes': ['./output:/app/output']
         }
-    elif 'agentbeats_id' in green_agent:
-        # For registered agents, we'd use the AgentBeats registry
-        # For now, use placeholder
+    elif 'agentbeats_id' in green_agent and green_agent.get('agentbeats_id'):
+        # For registered AgentBeats agents, use the platform-resolved image
+        # In production, AgentBeats resolves agentbeats_id to actual container images
+        agent_id = green_agent['agentbeats_id']
         services['green_agent'] = {
-            'image': 'placeholder/green:latest',
+            'image': f'agentbeats/{agent_id}:latest',  # Platform-resolved naming
             'environment': green_agent.get('env', {}),
             'ports': ['8000:8000'],
             'volumes': ['./output:/app/output']
         }
+    else:
+        print("Error: Green agent must have either 'image' or valid 'agentbeats_id'")
+        sys.exit(1)
 
     # Purple agent services
     participants = scenario.get('participants', [])
     for i, participant in enumerate(participants):
         service_name = f"purple_agent_{i}"
-        if 'image' in participant:
+        if 'image' in participant and participant['image']:
             services[service_name] = {
                 'image': participant['image'],
                 'environment': participant.get('env', {}),
                 'depends_on': ['green_agent'],
                 'volumes': ['./output:/app/output']
             }
-        elif 'agentbeats_id' in participant:
-            # For registered agents, use placeholder
+        elif 'agentbeats_id' in participant and participant.get('agentbeats_id'):
+            # For registered AgentBeats agents, use the platform-resolved image
+            agent_id = participant['agentbeats_id']
             services[service_name] = {
-                'image': 'placeholder/purple:latest',
+                'image': f'agentbeats/{agent_id}:latest',  # Platform-resolved naming
                 'environment': participant.get('env', {}),
                 'depends_on': ['green_agent'],
                 'volumes': ['./output:/app/output']
             }
+        else:
+            print(f"Warning: Participant {i} has no valid image or agentbeats_id, skipping")
+            continue
 
     # FHIR server for medical data (if needed)
     if scenario.get('config', {}).get('domain') == 'medagentbench':
@@ -88,7 +96,6 @@ def generate_compose_config(scenario: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     compose_config = {
-        'version': '3.8',
         'services': services,
         'volumes': {
             'output': {
@@ -97,7 +104,7 @@ def generate_compose_config(scenario: Dict[str, Any]) -> Dict[str, Any]:
         }
     }
 
-    return compose_config
+    return compose_config, services
 
 def save_compose_file(compose_config: Dict[str, Any], output_path: Path):
     """Save Docker Compose configuration to file."""
@@ -130,15 +137,28 @@ def main():
     print(f"✓ Loaded scenario from {args.scenario}")
 
     # Generate compose config
-    compose_config = generate_compose_config(scenario)
+    compose_config, services = generate_compose_config(scenario)
     print("✓ Generated Docker Compose configuration")
 
     # Save compose file
     save_compose_file(compose_config, args.output)
 
+    # Validate that we have at least one service
+    if not services:
+        print("Error: No valid services configured. Check your scenario.toml for image or agentbeats_id fields.")
+        sys.exit(1)
+
+    print(f"✓ Generated {len(services)} services: {', '.join(services.keys())}")
+
     print("\nNext steps:")
     print("1. Copy .env.example to .env and fill in your API keys")
-    print("2. Run: docker compose up --abort-on-container-exit")
+    print("2. For local testing, ensure your images exist or use placeholder images")
+    print("3. Run: docker compose up --abort-on-container-exit")
+
+    if any('agentbeats/' in str(service.get('image', '')) for service in services.values()):
+        print("\nℹ️  Note: Using AgentBeats platform images.")
+        print("   - These images are resolved by the AgentBeats platform during assessment runs")
+        print("   - For local development, consider using direct image references instead")
     print("3. Check output/ directory for results")
 
 if __name__ == '__main__':

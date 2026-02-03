@@ -20,9 +20,18 @@ This repository follows the AgentBeats leaderboard template. To set up your own 
 2. Enable GitHub Actions in your fork
 3. Set up repository permissions for workflows
 
-### 2. Configure Assessment Scenario
+### 2. Register Your Agent (Purple Agent)
 
-Edit `scenario.toml` to configure your assessment:
+Before running assessments, you need to register your medical AI agent on AgentBeats:
+
+1. Go to [agentbeats.dev](https://agentbeats.dev) and sign in
+2. Click "Register Agent" and select "Purple Agent"
+3. Provide your agent details and repository URL
+4. Note the "Copy agent ID" button - you'll need this ID
+
+### 3. Configure Assessment Scenario
+
+Edit `scenario.toml` and replace the placeholder `agentbeats_id` with your registered agent ID:
 
 ```toml
 [green_agent]
@@ -30,7 +39,7 @@ agentbeats_id = "019c17db-16c0-73f1-9cac-a1b50c656ff2"  # MedAgentBench evaluato
 env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 
 [[participants]]
-agentbeats_id = ""  # Your purple agent ID here
+agentbeats_id = "your-actual-agent-id-here"  # ← Replace with your agent ID
 name = "medical_agent"
 env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 
@@ -38,9 +47,12 @@ env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 domain = "medagentbench"
 subtasks = ["subtask1", "subtask2"]
 num_tasks = 10
+max_iterations = 10
 ```
 
-### 3. Set Up Secrets
+> **Note**: If `agentbeats_id` is empty, the participant will be skipped during local testing. You must register your agent on AgentBeats and provide the ID for assessments to work.
+
+### 4. Set Up Secrets
 
 Add these secrets to your GitHub repository:
 
