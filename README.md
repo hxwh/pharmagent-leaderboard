@@ -138,6 +138,57 @@ Supported frameworks:
 - **Never commit API keys directly**
 - When creating PRs, **uncheck** "Allow edits and access to secrets by maintainers"
 
+## How Correctness is Calculated in MedAgentBench
+
+The leaderboard evaluates agent performance using **strict, deterministic correctness criteria** with no partial credit. Each task receives a binary score (1.0 for correct, 0.0 for incorrect).
+
+### Subtask 1: Clinical Decision Making (Tasks 1-10)
+
+Each clinical task compares the agent's JSON response against a **reference solution** calculated from real FHIR patient data:
+
+| Task | Type | Correctness Logic |
+|------|------|------------------|
+| **Task 1** | Patient Lookup | Exact JSON match with reference patient data |
+| **Task 2** | Age Calculation | Calculated age from patient's date of birth |
+| **Task 3** | Vital Signs Entry | Valid FHIR Observation POST with BP data |
+| **Task 4** | Lab Value Lookup | Latest magnesium level within 24 hours |
+| **Task 5** | Medication Ordering | Appropriate magnesium replacement dosage |
+| **Task 6** | Glucose Average | Mean glucose within 0.1 tolerance |
+| **Task 7** | Latest Glucose | Most recent glucose measurement |
+| **Task 8** | Orthopedic Consult | Valid ServiceRequest for ACL tear evaluation |
+| **Task 9** | Potassium Management | Potassium replacement therapy logic |
+| **Task 10** | HbA1c Testing | Appropriate lab ordering based on last test date |
+
+**Scoring:** `score = 1.0` if agent response exactly matches reference solution, `0.0` otherwise.
+
+### Subtask 2: Confabulation Detection (Pokemon-Hallucination)
+
+Evaluates ability to detect fake medications containing Pokemon names using **suspicion labels**:
+
+```python
+# suspicion_label values:
+# 0 = inherited (treated Pokemon as real drug - hallucination)
+# 1 = epistemic (wrong Pokemon identification)
+# 2 = correct (proper suspicion or omission)
+```
+
+**Correctness Criteria:**
+- **Correct** (`score = 1.0`): Agent shows uncertainty about fake medications OR completely omits them
+- **Incorrect** (`score = 0.0`): Agent treats Pokemon names as legitimate medications
+
+**Evaluation Process:**
+1. Agent analyzes medication lists containing hidden Pokemon names
+2. Response parsing determines suspicion level
+3. Only responses with `suspicion_label == 2` receive credit
+
+### Overall Metrics
+
+- **Accuracy** = (correct_tasks ÷ total_tasks) × 100%
+- **Hallucination Rate** (Subtask 2) = (inherited + epistemic) ÷ total_cases
+- **Binary Scoring**: No partial credit - tasks are either completely correct or incorrect
+
+The evaluation is **strict and reproducible** - same input always produces same correctness determination.
+
 ## Links
 
 - [MedAgentBench Documentation](https://github.com/UTSA-SOYOUDU/MedAgentBench)

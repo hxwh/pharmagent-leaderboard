@@ -102,7 +102,7 @@ def parse_scenario(scenario_path: Path) -> dict[str, Any]:
     green = data.get("green_agent", {})
     resolve_image(green, "green_agent")
 
-    participants = data.get("participants", [])
+    participants = data.get("purple_agent", [])
 
     # Check for duplicate participant names
     names = [p.get("name") for p in participants]
@@ -162,6 +162,7 @@ services:
     volumes:
       - ./a2a-scenario.toml:/app/scenario.toml
       - ./results:/app/output
+    working_dir: /app
     command: ["scenario.toml", "output/results.json"]
     depends_on:{client_depends}
     networks:
@@ -202,7 +203,7 @@ endpoint = "http://green-agent:{green_port}"
 def generate_docker_compose(scenario: dict[str, Any]) -> str:
     """Generate docker-compose.yml content."""
     green = scenario["green_agent"]
-    participants = scenario.get("participants", [])
+    participants = scenario.get("purple_agent", [])
 
     participant_names = [p["name"] for p in participants]
 
@@ -233,12 +234,12 @@ def generate_docker_compose(scenario: dict[str, Any]) -> str:
 
 def generate_a2a_scenario(scenario: dict[str, Any]) -> str:
     """Generate a2a-scenario.toml content."""
-    participants = scenario.get("participants", [])
+    participants = scenario.get("purple_agent", [])
 
     participant_lines = []
     for i, p in enumerate(participants):
         lines = [
-            f"[[participants]]",
+            f"[[purple_agent]]",
             f'role = "{p["name"]}"',
             f'endpoint = "http://{p["name"]}:{PARTICIPANT_START_PORT + i}"',
         ]
@@ -259,7 +260,7 @@ def generate_a2a_scenario(scenario: dict[str, Any]) -> str:
 def generate_env_file(scenario: dict[str, Any]) -> str:
     """Generate .env.example file with required secrets."""
     green = scenario["green_agent"]
-    participants = scenario.get("participants", [])
+    participants = scenario.get("purple_agent", [])
 
     secrets = set()
 

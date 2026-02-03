@@ -11,10 +11,10 @@ agentbeats_id = "019c17db-16c0-73f1-9cac-a1b50c656ff2"
 # image = "medagentbench-green:latest"
 env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 
-[[participants]]
+[[purple_agent]]
 # Submitters fill in their agent details here
 # IMPORTANT: Replace with your actual agent's agentbeats_id from AgentBeats
-agentbeats_id = ""
+agentbeats_id = "YOUR_MEDICAL_AGENT_ID_HERE"
 name = "medical_agent"
 # For production with registry images: use full image path
 # image = "hxwh/ai-pharmd-medagentbench-purple:latest"

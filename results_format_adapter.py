@@ -157,7 +157,7 @@ def get_participant_id_from_scenario() -> str:
     with open(scenario_path, "rb") as f:
         scenario = tomllib.load(f)
     
-    participants = scenario.get("participants", [])
+    participants = scenario.get("purple_agent", [])
     if participants:
         p = participants[0]
         return p.get("agentbeats_id") or p.get("name", "unknown")
