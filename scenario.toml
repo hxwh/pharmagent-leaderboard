@@ -25,6 +25,9 @@ env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 [config]
 # Assessment configuration - purple agents compete on these tasks
 
+# MCP server URL for purple agent tool discovery
+mcp_server_url = "http://mcp_server:8002"
+
 # Subtask selection: Run one or both subtasks in a single assessment
 # Options: "subtask1", "subtask2", or ["subtask1", "subtask2"] for both
 # "subtask1": Medical Record Tasks (patient lookup, vitals, labs, ordering, consultations)

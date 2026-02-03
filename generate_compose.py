@@ -116,6 +116,11 @@ def parse_scenario(scenario_path: Path) -> dict[str, Any]:
         name = participant.get("name", "unknown")
         resolve_image(participant, f"participant '{name}'")
 
+        # Add MCP server URL environment variable to purple agents
+        if "env" not in participant:
+            participant["env"] = {}
+        participant["env"]["FHIR_MCP_SERVER_URL"] = "http://mcp_server:8002"
+
     return data
 
 
@@ -191,6 +196,32 @@ services:
     networks:
       - agent-network
 
+  # MCP server health check sidecar
+  mcp-healthcheck:
+    image: curlimages/curl:latest
+    platform: linux/amd64
+    container_name: mcp-healthcheck
+    depends_on:
+      mcp-server:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Waiting for MCP server..."
+        until curl -sf http://mcp_server:8002/health > /dev/null 2>&1; do
+          sleep 5
+        done
+        echo "MCP ready"
+        tail -f /dev/null
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://mcp_server:8002/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 90s
+    networks:
+      - agent-network
+
   agentbeats-client:
     image: ghcr.io/agentbeats/agentbeats-client:v1.0.0
     platform: linux/amd64
@@ -217,6 +248,8 @@ PARTICIPANT_TEMPLATE = """  {name}:
     environment:{env}
     depends_on:
       fhir-healthcheck:
+        condition: service_healthy
+      mcp-server:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:{port}/.well-known/agent-card.json"]
@@ -251,7 +284,7 @@ def generate_docker_compose(scenario: dict[str, Any]) -> str:
             name=p["name"],
             image=p["image"],
             port=PARTICIPANT_START_PORT + i,
-            env=format_env_vars({**p.get("env", {}), "MCP_FHIR_API_BASE": "http://medagentbench-fhir:8080/fhir/"})
+            env=format_env_vars({**p.get("env", {}), "MCP_FHIR_API_BASE": "http://medagentbench-fhir:8080/fhir/", "FHIR_MCP_SERVER_URL": "http://mcp_server:8002"})
         )
         for i, p in enumerate(participants)
     ])
@@ -262,12 +295,35 @@ def generate_docker_compose(scenario: dict[str, Any]) -> str:
     # Use fhir-healthcheck (sidecar) instead of fhir-server (distroless, no curl)
     green_depends = format_depends_on(participant_names + ["fhir-healthcheck"]) if participant_names else format_depends_on(["fhir-healthcheck"])
 
+    # Add MCP server to all_services and generate service
+    all_services.insert(0, "mcp-server")  # Add at beginning for proper dependency order
+    mcp_server_service = """  mcp-server:
+    image: docker.io/hxwh/ai-pharmd-medagentbench-mcp:latest
+    platform: linux/amd64
+    container_name: mcp_server
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MCP_FHIR_API_BASE=http://medagentbench-fhir:8080/fhir/
+    depends_on:
+      fhir-healthcheck:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    networks:
+      - agent-network
+
+"""
+
     return COMPOSE_TEMPLATE.format(
         green_image=green["image"],
         green_port=DEFAULT_PORT,
         green_env=format_env_vars(green.get("env", {})),
         green_depends=green_depends,
-        participant_services=participant_services,
+        participant_services=mcp_server_service + participant_services,
         client_depends=format_depends_on(all_services)
     )
 
