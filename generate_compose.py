@@ -161,12 +161,33 @@ services:
     container_name: medagentbench-fhir
     ports:
       - "8080:8080"
+    # Note: distroless image has no curl/shell, health check via sidecar
+    networks:
+      - agent-network
+
+  # FHIR health check sidecar (distroless image has no curl)
+  fhir-healthcheck:
+    image: curlimages/curl:latest
+    platform: linux/amd64
+    container_name: fhir-healthcheck
+    depends_on:
+      fhir-server:
+        condition: service_started
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Waiting for FHIR server..."
+        until curl -sf http://medagentbench-fhir:8080/fhir/metadata > /dev/null 2>&1; do
+          sleep 5
+        done
+        echo "FHIR ready"
+        tail -f /dev/null
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/fhir/metadata"]
+      test: ["CMD", "curl", "-sf", "http://medagentbench-fhir:8080/fhir/metadata"]
       interval: 10s
       timeout: 10s
-      retries: 10
-      start_period: 60s
+      retries: 30
+      start_period: 90s
     networks:
       - agent-network
 
@@ -194,6 +215,9 @@ PARTICIPANT_TEMPLATE = """  {name}:
     container_name: {name}
     command: ["--host", "0.0.0.0", "--port", "{port}", "--card-url", "http://{name}:{port}"]
     environment:{env}
+    depends_on:
+      fhir-healthcheck:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:{port}/.well-known/agent-card.json"]
       interval: 5s
@@ -232,10 +256,11 @@ def generate_docker_compose(scenario: dict[str, Any]) -> str:
         for i, p in enumerate(participants)
     ])
 
-    all_services = ["green-agent", "fhir-server"] + participant_names
+    all_services = ["green-agent", "fhir-healthcheck"] + participant_names
 
     # Handle case with no participants
-    green_depends = format_depends_on(participant_names + ["fhir-server"]) if participant_names else format_depends_on(["fhir-server"])
+    # Use fhir-healthcheck (sidecar) instead of fhir-server (distroless, no curl)
+    green_depends = format_depends_on(participant_names + ["fhir-healthcheck"]) if participant_names else format_depends_on(["fhir-healthcheck"])
 
     return COMPOSE_TEMPLATE.format(
         green_image=green["image"],
