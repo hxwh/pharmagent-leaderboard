@@ -186,7 +186,7 @@ def generate_a2a_scenario(scenario: dict[str, Any]) -> str:
         if agentbeats_id:  # Only include participants with valid agentbeats_id
             lines = [
                 f"[[participants]]",
-                f"role = \"{p['name']}\"",
+                f"role = \"medical_agent\"",  # Green agent expects this specific role name
                 f"endpoint = \"http://purple_agent_{i}:8000\"",
                 f"agentbeats_id = \"{agentbeats_id}\"",
             ]
