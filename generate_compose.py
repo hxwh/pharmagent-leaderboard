@@ -3,7 +3,13 @@
 Generate Docker Compose configuration for MedAgentBench Leaderboard
 
 Used by GitHub Actions workflow for AgentBeats platform assessment runs.
-Not intended for local development - use AgentBeats platform instead.
+ONLY supports AgentBeats platform - local image specifications are not allowed.
+
+To evaluate your agent:
+1. Register your agent at https://agentbeats.dev
+2. Get your agentbeats_id
+3. Fill it in scenario.toml
+4. Push to trigger GitHub Actions assessment
 """
 
 import argparse
@@ -39,36 +45,29 @@ def fetch_agent_info(agentbeats_id: str) -> dict:
         response.raise_for_status()
         return response.json()
     except requests.exceptions.HTTPError as e:
-        print(f"Error: Failed to fetch agent {agentbeats_id}: {e}")
-        sys.exit(1)
+        raise Exception(f"Failed to fetch agent {agentbeats_id}: {e}")
     except requests.exceptions.JSONDecodeError:
-        print(f"Error: Invalid JSON response for agent {agentbeats_id}")
-        sys.exit(1)
+        raise Exception(f"Invalid JSON response for agent {agentbeats_id}")
     except requests.exceptions.RequestException as e:
-        print(f"Error: Request failed for agent {agentbeats_id}: {e}")
-        sys.exit(1)
+        raise Exception(f"Request failed for agent {agentbeats_id}: {e}")
 
 
-def resolve_image(agent: dict, name: str) -> None:
-    """Resolve docker image for an agent, either from 'image' field or agentbeats API."""
-    has_image = "image" in agent
-    has_id = "agentbeats_id" in agent and agent.get("agentbeats_id", "").strip()
+def resolve_image(agent: dict, name: str) -> bool:
+    """Resolve docker image for an agent via AgentBeats API. Returns True if resolved, False if skipped."""
+    agentbeats_id = agent.get("agentbeats_id", "").strip()
 
-    if has_image and has_id:
-        print(f"Error: {name} has both 'image' and 'agentbeats_id' - use one or the other")
-        sys.exit(1)
-    elif has_image:
-        if os.environ.get("GITHUB_ACTIONS"):
-            print(f"Error: {name} requires 'agentbeats_id' for GitHub Actions (use 'image' for local testing only)")
-            sys.exit(1)
-        print(f"Using {name} image: {agent['image']}")
-    elif has_id:
-        info = fetch_agent_info(agent["agentbeats_id"])
+    if not agentbeats_id:
+        print(f"Skipping {name} - no agentbeats_id provided")
+        return False
+
+    try:
+        info = fetch_agent_info(agentbeats_id)
         agent["image"] = info["docker_image"]
         print(f"Resolved {name} image: {agent['image']}")
-    else:
-        print(f"Error: {name} must have either 'image' or 'agentbeats_id' field")
-        sys.exit(1)
+        return True
+    except Exception as e:
+        print(f"Failed to resolve {name}: {e}")
+        return False
 
 
 def load_scenario(scenario_path: Path) -> Dict[str, Any]:
@@ -86,30 +85,28 @@ def load_scenario(scenario_path: Path) -> Dict[str, Any]:
 def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], Dict[str, Any]]:
     """Generate Docker Compose configuration from scenario."""
 
-    # Resolve images for all agents
-    green_agent = scenario.get('green_agent', {})
-    resolve_image(green_agent, "green_agent")
-
-    participants = scenario.get('participants', [])
-    valid_participants = []
-    for i, participant in enumerate(participants):
-        name = participant.get('name', f'participant_{i}')
-        try:
-            resolve_image(participant, f"participant '{name}'")
-            valid_participants.append(participant)
-        except SystemExit:
-            print(f"Skipping participant '{name}' - no valid image or agentbeats_id")
-            continue
-
     services = {}
 
-    # Green agent (evaluator) service
+    # Resolve green agent image (required)
+    green_agent = scenario.get('green_agent', {})
+    if not resolve_image(green_agent, "green_agent"):
+        print("Error: Green agent must have a valid agentbeats_id")
+        sys.exit(1)
+
     services['green_agent'] = {
         'image': green_agent['image'],
         'environment': green_agent.get('env', {}),
         'ports': ['8000:8000'],
         'volumes': ['./output:/app/output']
     }
+
+    # Resolve participant images (optional - skip if no agentbeats_id)
+    participants = scenario.get('participants', [])
+    valid_participants = []
+    for i, participant in enumerate(participants):
+        name = participant.get('name', f'participant_{i}')
+        if resolve_image(participant, f"participant '{name}'"):
+            valid_participants.append(participant)
 
     # Purple agent services
     for i, participant in enumerate(valid_participants):
@@ -187,20 +184,42 @@ def main():
 
     print(f"✓ Generated {len(services)} services: {', '.join(services.keys())}")
 
-    # Check for platform usage
-    agentbeats_images = [service.get('image', '') for service in services.values()
-                        if 'ghcr.io/agentbeats/' in str(service.get('image', ''))]
+    # Check for platform usage - all agents must have agentbeats_id
+    green_agent = scenario.get('green_agent', {})
+    participants = scenario.get('participants', [])
 
-    if agentbeats_images:
-        print("\n✅ AgentBeats Platform Configuration Confirmed")
-        print(f"   Ready for automated assessment with {len(agentbeats_images)} registered agent(s)")
-        print("   GitHub Actions will resolve agentbeats_id to container images")
-    else:
-        print("\n❌ Local Development Configuration Detected")
-        print("   This script is for AgentBeats platform use only")
-        print("   For local testing, use direct Docker image references")
-        print("   Example: image = 'your-registry/your-image:latest'")
+    has_green_agentbeats_id = bool(green_agent.get('agentbeats_id', '').strip())
+
+    agentbeats_participants = 0
+    empty_participants = 0
+
+    for participant in participants:
+        agentbeats_id = participant.get('agentbeats_id', '').strip()
+        if agentbeats_id:
+            agentbeats_participants += 1
+        else:
+            empty_participants += 1
+
+    total_registered_agents = (1 if has_green_agentbeats_id else 0) + agentbeats_participants
+
+    if total_registered_agents == 0:
+        print("\n❌ No Registered Agents Found")
+        print("   All agents must be registered with AgentBeats platform")
+        print("   Visit https://agentbeats.dev to register your agents")
+        print("   Then update scenario.toml with your agentbeats_id values")
         sys.exit(1)
+
+    if not has_green_agentbeats_id:
+        print("\n❌ Green Agent Not Registered")
+        print("   The green agent (evaluator) must have a valid agentbeats_id")
+        sys.exit(1)
+
+    print("\n✅ AgentBeats Platform Configuration Confirmed")
+    print(f"   Using {total_registered_agents} registered agent(s) from AgentBeats platform")
+    print("   Images resolved via agentbeats.dev API")
+
+    if empty_participants > 0:
+        print(f"   Note: {empty_participants} participant(s) skipped (no agentbeats_id provided)")
 
     print("\n🚀 Ready for GitHub Actions workflow execution")
 
