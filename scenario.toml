@@ -7,7 +7,7 @@ agentbeats_id = "019c17db-16c0-73f1-9cac-a1b50c656ff2"  # MedAgentBench evaluato
 env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 
 [[participants]]
-agentbeats_id = ""  # 🔴 REQUIRED: Replace with your agent ID from agentbeats.dev
+agentbeats_id = "019c17ea-ac28-7fa2-8716-b3f79eb2913c"  # 🔴 REQUIRED: Replace with your agent ID from agentbeats.dev
 name = "medical_agent"
 env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 
