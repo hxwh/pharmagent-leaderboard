@@ -8,6 +8,7 @@ Not intended for local development - use AgentBeats platform instead.
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -20,6 +21,55 @@ except ImportError:
     except ImportError:
         print("Error: tomli or tomllib required. Install with: pip install tomli")
         sys.exit(1)
+
+try:
+    import requests
+except ImportError:
+    print("Error: requests required. Install with: pip install requests")
+    sys.exit(1)
+
+AGENTBEATS_API_URL = "https://agentbeats.dev/api/agents"
+
+
+def fetch_agent_info(agentbeats_id: str) -> dict:
+    """Fetch agent info from agentbeats.dev API."""
+    url = f"{AGENTBEATS_API_URL}/{agentbeats_id}"
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.HTTPError as e:
+        print(f"Error: Failed to fetch agent {agentbeats_id}: {e}")
+        sys.exit(1)
+    except requests.exceptions.JSONDecodeError:
+        print(f"Error: Invalid JSON response for agent {agentbeats_id}")
+        sys.exit(1)
+    except requests.exceptions.RequestException as e:
+        print(f"Error: Request failed for agent {agentbeats_id}: {e}")
+        sys.exit(1)
+
+
+def resolve_image(agent: dict, name: str) -> None:
+    """Resolve docker image for an agent, either from 'image' field or agentbeats API."""
+    has_image = "image" in agent
+    has_id = "agentbeats_id" in agent and agent.get("agentbeats_id", "").strip()
+
+    if has_image and has_id:
+        print(f"Error: {name} has both 'image' and 'agentbeats_id' - use one or the other")
+        sys.exit(1)
+    elif has_image:
+        if os.environ.get("GITHUB_ACTIONS"):
+            print(f"Error: {name} requires 'agentbeats_id' for GitHub Actions (use 'image' for local testing only)")
+            sys.exit(1)
+        print(f"Using {name} image: {agent['image']}")
+    elif has_id:
+        info = fetch_agent_info(agent["agentbeats_id"])
+        agent["image"] = info["docker_image"]
+        print(f"Resolved {name} image: {agent['image']}")
+    else:
+        print(f"Error: {name} must have either 'image' or 'agentbeats_id' field")
+        sys.exit(1)
+
 
 def load_scenario(scenario_path: Path) -> Dict[str, Any]:
     """Load and parse scenario.toml file."""
@@ -36,54 +86,40 @@ def load_scenario(scenario_path: Path) -> Dict[str, Any]:
 def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], Dict[str, Any]]:
     """Generate Docker Compose configuration from scenario."""
 
+    # Resolve images for all agents
+    green_agent = scenario.get('green_agent', {})
+    resolve_image(green_agent, "green_agent")
+
+    participants = scenario.get('participants', [])
+    valid_participants = []
+    for i, participant in enumerate(participants):
+        name = participant.get('name', f'participant_{i}')
+        try:
+            resolve_image(participant, f"participant '{name}'")
+            valid_participants.append(participant)
+        except SystemExit:
+            print(f"Skipping participant '{name}' - no valid image or agentbeats_id")
+            continue
+
     services = {}
 
     # Green agent (evaluator) service
-    green_agent = scenario.get('green_agent', {})
-    if 'image' in green_agent and green_agent['image']:
-        services['green_agent'] = {
-            'image': green_agent['image'],
-            'environment': green_agent.get('env', {}),
-            'ports': ['8000:8000'],
-            'volumes': ['./output:/app/output']
-        }
-    elif 'agentbeats_id' in green_agent and green_agent.get('agentbeats_id'):
-        # For registered AgentBeats agents, use the platform-resolved image
-        # In production, AgentBeats resolves agentbeats_id to actual container images
-        agent_id = green_agent['agentbeats_id']
-        services['green_agent'] = {
-            'image': f'ghcr.io/agentbeats/{agent_id}:latest',  # Platform-resolved naming
-            'environment': green_agent.get('env', {}),
-            'ports': ['8000:8000'],
-            'volumes': ['./output:/app/output']
-        }
-    else:
-        print("Error: Green agent must have either 'image' or valid 'agentbeats_id'")
-        sys.exit(1)
+    services['green_agent'] = {
+        'image': green_agent['image'],
+        'environment': green_agent.get('env', {}),
+        'ports': ['8000:8000'],
+        'volumes': ['./output:/app/output']
+    }
 
     # Purple agent services
-    participants = scenario.get('participants', [])
-    for i, participant in enumerate(participants):
+    for i, participant in enumerate(valid_participants):
         service_name = f"purple_agent_{i}"
-        if 'image' in participant and participant['image']:
-            services[service_name] = {
-                'image': participant['image'],
-                'environment': participant.get('env', {}),
-                'depends_on': ['green_agent'],
-                'volumes': ['./output:/app/output']
-            }
-        elif 'agentbeats_id' in participant and participant.get('agentbeats_id'):
-            # For registered AgentBeats agents, use the platform-resolved image
-            agent_id = participant['agentbeats_id']
-            services[service_name] = {
-                'image': f'ghcr.io/agentbeats/{agent_id}:latest',  # Platform-resolved naming
-                'environment': participant.get('env', {}),
-                'depends_on': ['green_agent'],
-                'volumes': ['./output:/app/output']
-            }
-        else:
-            print(f"Warning: Participant {i} has no valid image or agentbeats_id, skipping")
-            continue
+        services[service_name] = {
+            'image': participant['image'],
+            'environment': participant.get('env', {}),
+            'depends_on': ['green_agent'],
+            'volumes': ['./output:/app/output']
+        }
 
     # FHIR server for medical data (if needed)
     if scenario.get('config', {}).get('domain') == 'medagentbench':

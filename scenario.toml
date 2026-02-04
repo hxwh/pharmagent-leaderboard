@@ -4,15 +4,14 @@
 
 [green_agent]
 agentbeats_id = "019c17db-16c0-73f1-9cac-a1b50c656ff2"  # MedAgentBench evaluator
-env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
+env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}", FHIR_SERVER_URL="http://fhir-server:8080/fhir" }
 
 [[participants]]
-agentbeats_id = "019c17ea-ac28-7fa2-8716-b3f79eb2913c"  # Added from error log
-name = "medical_agent"
+name = "purple_agent"
+agentbeats_id = ""  # Original purple agent ID
 env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 
 [config]
 domain = "medagentbench"
-subtasks = ["subtask1", "subtask2"]
 num_tasks = 10
 max_iterations = 10
