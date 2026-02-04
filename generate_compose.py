@@ -1,15 +1,8 @@
 #!/usr/bin/env python3
 """
-Generate Docker Compose configuration for MedAgentBench Leaderboard
+Generate Docker Compose for MedAgentBench Leaderboard on AgentBeats platform.
 
-Used by GitHub Actions workflow for AgentBeats platform assessment runs.
-ONLY supports AgentBeats platform - local image specifications are not allowed.
-
-To evaluate your agent:
-1. Register your agent at https://agentbeats.dev
-2. Get your agentbeats_id
-3. Fill it in scenario.toml
-4. Push to trigger GitHub Actions assessment
+REQUIRES AgentBeats registration - no local images supported.
 """
 
 import argparse
@@ -53,21 +46,17 @@ def fetch_agent_info(agentbeats_id: str) -> dict:
 
 
 def resolve_image(agent: dict, name: str) -> bool:
-    """Resolve docker image for an agent via AgentBeats API. Returns True if resolved, False if skipped."""
+    """Resolve docker image for an agent via AgentBeats API."""
     agentbeats_id = agent.get("agentbeats_id", "").strip()
 
     if not agentbeats_id:
         print(f"Skipping {name} - no agentbeats_id provided")
         return False
 
-    try:
-        info = fetch_agent_info(agentbeats_id)
-        agent["image"] = info["docker_image"]
-        print(f"Resolved {name} image: {agent['image']}")
-        return True
-    except Exception as e:
-        print(f"Failed to resolve {name}: {e}")
-        return False
+    info = fetch_agent_info(agentbeats_id)
+    agent["image"] = info["docker_image"]
+    print(f"Resolved {name} image: {agent['image']}")
+    return True
 
 
 def load_scenario(scenario_path: Path) -> Dict[str, Any]:
@@ -95,9 +84,19 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
 
     services['green_agent'] = {
         'image': green_agent['image'],
+        'container_name': 'green_agent',
+        'command': ['--host', '0.0.0.0', '--port', '8000', '--card-url', 'http://green_agent:8000'],
         'environment': green_agent.get('env', {}),
         'ports': ['8000:8000'],
-        'volumes': ['./output:/app/output']
+        'volumes': ['./output:/app/output'],
+        'networks': ['agent-network'],
+        'healthcheck': {
+            'test': ['CMD', 'curl', '-f', 'http://localhost:8000/.well-known/agent-card.json'],
+            'interval': '5s',
+            'timeout': '3s',
+            'retries': 10,
+            'start_period': '30s'
+        }
     }
 
     # Resolve participant images (optional - skip if no agentbeats_id)
@@ -113,18 +112,36 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
         service_name = f"purple_agent_{i}"
         services[service_name] = {
             'image': participant['image'],
+            'container_name': service_name,
+            'command': ['--host', '0.0.0.0', '--port', '8000', '--card-url', f'http://{service_name}:8000'],
             'environment': participant.get('env', {}),
             'depends_on': ['green_agent'],
-            'volumes': ['./output:/app/output']
+            'volumes': ['./output:/app/output'],
+            'networks': ['agent-network'],
+            'healthcheck': {
+                'test': ['CMD', 'curl', '-f', 'http://localhost:8000/.well-known/agent-card.json'],
+                'interval': '5s',
+                'timeout': '3s',
+                'retries': 10,
+                'start_period': '30s'
+            }
         }
 
     # FHIR server for medical data (if needed)
     if scenario.get('config', {}).get('domain') == 'medagentbench':
         services['fhir_server'] = {
             'image': 'jyxsu6/medagentbench:latest',
+            'container_name': 'fhir_server',
             'ports': ['8080:8080'],
             'environment': {
                 'FHIR_PORT': '8080'
+            },
+            'networks': ['agent-network'],
+            'healthcheck': {
+                'test': ['CMD', 'curl', '-f', 'http://localhost:8080/fhir/metadata'],
+                'interval': '30s',
+                'timeout': '10s',
+                'retries': 5
             }
         }
 
@@ -132,15 +149,16 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
     # This service runs the client that coordinates between green and purple agents
     all_agent_services = ['green_agent'] + [f'purple_agent_{i}' for i in range(len(valid_participants))]
 
-    services['agentbeats_client'] = {
+    services['agentbeats-client'] = {
         'image': 'ghcr.io/agentbeats/agentbeats-client:v1.0.0',
-        'container_name': 'agentbeats_client',
+        'container_name': 'agentbeats-client',
         'volumes': [
             './a2a-scenario.toml:/app/scenario.toml',
             './output:/app/output'
         ],
         'command': ['scenario.toml', 'output/results.json'],
-        'depends_on': all_agent_services
+        'depends_on': all_agent_services,
+        'networks': ['agent-network']
     }
 
     compose_config = {
@@ -148,6 +166,11 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
         'volumes': {
             'output': {
                 'driver': 'local'
+            }
+        },
+        'networks': {
+            'agent-network': {
+                'driver': 'bridge'
             }
         }
     }
