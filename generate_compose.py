@@ -11,7 +11,6 @@ import os
 import sys
 from pathlib import Path
 from typing import Any, Dict
-import tomllib
 
 try:
     import tomli
@@ -53,7 +52,7 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
         # In production, AgentBeats resolves agentbeats_id to actual container images
         agent_id = green_agent['agentbeats_id']
         services['green_agent'] = {
-            'image': f'agentbeats/{agent_id}:latest',  # Platform-resolved naming
+            'image': f'ghcr.io/agentbeats/{agent_id}:latest',  # Platform-resolved naming
             'environment': green_agent.get('env', {}),
             'ports': ['8000:8000'],
             'volumes': ['./output:/app/output']
@@ -77,7 +76,7 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
             # For registered AgentBeats agents, use the platform-resolved image
             agent_id = participant['agentbeats_id']
             services[service_name] = {
-                'image': f'agentbeats/{agent_id}:latest',  # Platform-resolved naming
+                'image': f'ghcr.io/agentbeats/{agent_id}:latest',  # Platform-resolved naming
                 'environment': participant.get('env', {}),
                 'depends_on': ['green_agent'],
                 'volumes': ['./output:/app/output']
@@ -154,7 +153,7 @@ def main():
 
     # Check for platform usage
     agentbeats_images = [service.get('image', '') for service in services.values()
-                        if 'agentbeats/' in str(service.get('image', ''))]
+                        if 'ghcr.io/agentbeats/' in str(service.get('image', ''))]
 
     if agentbeats_images:
         print("\n✅ AgentBeats Platform Configuration Confirmed")
