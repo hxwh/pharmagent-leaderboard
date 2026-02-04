@@ -96,7 +96,8 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
             'timeout': '3s',
             'retries': 10,
             'start_period': '30s'
-        }
+        },
+        'platform': 'linux/amd64'
     }
 
     # Resolve participant images (optional - skip if no agentbeats_id)
@@ -115,7 +116,9 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
             'container_name': service_name,
             'command': ['--host', '0.0.0.0', '--port', '8000', '--card-url', f'http://{service_name}:8000'],
             'environment': participant.get('env', {}),
-            'depends_on': ['green_agent'],
+            'depends_on': {
+                'green_agent': {'condition': 'service_healthy'}
+            },
             'volumes': ['./output:/app/output'],
             'networks': ['agent-network'],
             'healthcheck': {
@@ -124,7 +127,8 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
                 'timeout': '3s',
                 'retries': 10,
                 'start_period': '30s'
-            }
+            },
+            'platform': 'linux/amd64'
         }
 
     # FHIR server for medical data (if needed)
@@ -142,12 +146,18 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
                 'interval': '30s',
                 'timeout': '10s',
                 'retries': 5
-            }
+            },
+            'platform': 'linux/amd64'
         }
 
     # AgentBeats client service to orchestrate the evaluation
     # This service runs the client that coordinates between green and purple agents
     all_agent_services = ['green_agent'] + [f'purple_agent_{i}' for i in range(len(valid_participants))]
+
+    # Create depends_on dict for agentbeats-client
+    client_depends_on = {}
+    for service in all_agent_services:
+        client_depends_on[service] = {'condition': 'service_healthy'}
 
     services['agentbeats-client'] = {
         'image': 'ghcr.io/agentbeats/agentbeats-client:v1.0.0',
@@ -157,8 +167,9 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
             './output:/app/output'
         ],
         'command': ['scenario.toml', 'output/results.json'],
-        'depends_on': all_agent_services,
-        'networks': ['agent-network']
+        'depends_on': client_depends_on,
+        'networks': ['agent-network'],
+        'platform': 'linux/amd64'
     }
 
     compose_config = {
@@ -183,13 +194,13 @@ def generate_a2a_scenario(scenario: dict[str, Any]) -> str:
     participants = scenario.get('participants', [])
 
     participant_lines = []
-    for p in participants:
+    for i, p in enumerate(participants):
         agentbeats_id = p.get('agentbeats_id', '').strip()
         if agentbeats_id:  # Only include participants with valid agentbeats_id
             lines = [
                 f"[[participants]]",
-                f"name = \"{p['name']}\"",
-                f"endpoint = \"http://purple_agent_{len(participant_lines)}:8000\"",
+                f"role = \"{p['name']}\"",
+                f"endpoint = \"http://purple_agent_{i}:8000\"",
                 f"agentbeats_id = \"{agentbeats_id}\"",
             ]
             participant_lines.append("\n".join(lines) + "\n")
