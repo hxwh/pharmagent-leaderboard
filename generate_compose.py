@@ -128,6 +128,21 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
             }
         }
 
+    # AgentBeats client service to orchestrate the evaluation
+    # This service runs the client that coordinates between green and purple agents
+    all_agent_services = ['green_agent'] + [f'purple_agent_{i}' for i in range(len(valid_participants))]
+
+    services['agentbeats_client'] = {
+        'image': 'ghcr.io/agentbeats/agentbeats-client:v1.0.0',
+        'container_name': 'agentbeats_client',
+        'volumes': [
+            './a2a-scenario.toml:/app/scenario.toml',
+            './output:/app/output'
+        ],
+        'command': ['scenario.toml', 'output/results.json'],
+        'depends_on': all_agent_services
+    }
+
     compose_config = {
         'services': services,
         'volumes': {
@@ -138,6 +153,42 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
     }
 
     return compose_config, services
+
+
+def generate_a2a_scenario(scenario: dict[str, Any]) -> str:
+    """Generate A2A scenario file for agentbeats client."""
+    participants = scenario.get('participants', [])
+
+    participant_lines = []
+    for p in participants:
+        agentbeats_id = p.get('agentbeats_id', '').strip()
+        if agentbeats_id:  # Only include participants with valid agentbeats_id
+            lines = [
+                f"[[participants]]",
+                f"name = \"{p['name']}\"",
+                f"endpoint = \"http://purple_agent_{len(participant_lines)}:8000\"",
+                f"agentbeats_id = \"{agentbeats_id}\"",
+            ]
+            participant_lines.append("\n".join(lines) + "\n")
+
+    config_section = scenario.get("config", {})
+    config_lines = []
+    if config_section:
+        import tomli_w
+        config_lines = [tomli_w.dumps({"config": config_section})]
+
+    return A2A_SCENARIO_TEMPLATE.format(
+        participants="\n".join(participant_lines),
+        config="\n".join(config_lines)
+    )
+
+
+A2A_SCENARIO_TEMPLATE = """[green_agent]
+endpoint = "http://green-agent:8000"
+
+{participants}
+{config}"""
+
 
 def save_compose_file(compose_config: Dict[str, Any], output_path: Path):
     """Save Docker Compose configuration to file."""
@@ -173,8 +224,18 @@ def main():
     compose_config, services = generate_compose_config(scenario)
     print("✓ Generated Docker Compose configuration")
 
+    # Generate A2A scenario
+    a2a_scenario = generate_a2a_scenario(scenario)
+    print("✓ Generated A2A scenario configuration")
+
     # Save compose file
     save_compose_file(compose_config, args.output)
+
+    # Save A2A scenario file
+    a2a_path = Path("a2a-scenario.toml")
+    with open(a2a_path, 'w') as f:
+        f.write(a2a_scenario)
+    print(f"✓ A2A scenario saved to {a2a_path}")
 
     # Validate that we have at least one service
     if not services:
