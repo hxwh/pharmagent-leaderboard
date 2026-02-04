@@ -84,12 +84,10 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
 
     services['green_agent'] = {
         'image': green_agent['image'],
-        'container_name': 'green_agent',
         'command': ['--host', '0.0.0.0', '--port', '8000', '--card-url', 'http://green_agent:8000'],
         'environment': green_agent.get('env', {}),
         'ports': ['8000:8000'],
         'volumes': ['./output:/app/output'],
-        'networks': ['agent-network'],
         'healthcheck': {
             'test': ['CMD', 'curl', '-f', 'http://localhost:8000/.well-known/agent-card.json'],
             'interval': '5s',
@@ -113,14 +111,12 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
         service_name = f"purple_agent_{i}"
         services[service_name] = {
             'image': participant['image'],
-            'container_name': service_name,
             'command': ['--host', '0.0.0.0', '--port', '8000', '--card-url', f'http://{service_name}:8000'],
             'environment': participant.get('env', {}),
             'depends_on': {
                 'green_agent': {'condition': 'service_healthy'}
             },
             'volumes': ['./output:/app/output'],
-            'networks': ['agent-network'],
             'healthcheck': {
                 'test': ['CMD', 'curl', '-f', 'http://localhost:8000/.well-known/agent-card.json'],
                 'interval': '5s',
@@ -135,12 +131,10 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
     if scenario.get('config', {}).get('domain') == 'medagentbench':
         services['fhir_server'] = {
             'image': 'jyxsu6/medagentbench:latest',
-            'container_name': 'fhir_server',
             'ports': ['8080:8080'],
             'environment': {
                 'FHIR_PORT': '8080'
             },
-            'networks': ['agent-network'],
             'healthcheck': {
                 'test': ['CMD', 'curl', '-f', 'http://localhost:8080/fhir/metadata'],
                 'interval': '30s',
@@ -161,14 +155,12 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
 
     services['agentbeats-client'] = {
         'image': 'ghcr.io/agentbeats/agentbeats-client:v1.0.0',
-        'container_name': 'agentbeats-client',
         'volumes': [
             './a2a-scenario.toml:/app/scenario.toml',
             './output:/app/output'
         ],
         'command': ['scenario.toml', 'output/results.json'],
         'depends_on': client_depends_on,
-        'networks': ['agent-network'],
         'platform': 'linux/amd64'
     }
 
@@ -177,11 +169,6 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
         'volumes': {
             'output': {
                 'driver': 'local'
-            }
-        },
-        'networks': {
-            'agent-network': {
-                'driver': 'bridge'
             }
         }
     }
@@ -218,7 +205,7 @@ def generate_a2a_scenario(scenario: dict[str, Any]) -> str:
 
 
 A2A_SCENARIO_TEMPLATE = """[green_agent]
-endpoint = "http://green-agent:8000"
+endpoint = "http://green_agent:8000"
 
 {participants}
 {config}"""
