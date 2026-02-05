@@ -7,7 +7,6 @@ REQUIRES AgentBeats registration - no local images supported.
 
 import argparse
 import os
-import re
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -109,13 +108,15 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
     # Purple agent services
     for i, participant in enumerate(valid_participants):
         service_name = f"purple_agent_{i}"
+        # Build depends_on - always depend on green_agent, add mcp_server if medagentbench domain
+        purple_depends_on = {'green_agent': {'condition': 'service_healthy'}}
+        if scenario.get('config', {}).get('domain') == 'medagentbench':
+            purple_depends_on['mcp_server'] = {'condition': 'service_healthy'}
         services[service_name] = {
             'image': participant['image'],
             'command': ['--host', '0.0.0.0', '--port', '8000', '--card-url', f'http://{service_name}:8000'],
             'environment': participant.get('env', {}),
-            'depends_on': {
-                'green_agent': {'condition': 'service_healthy'}
-            },
+            'depends_on': purple_depends_on,
             'volumes': ['./output:/app/output'],
             'healthcheck': {
                 'test': ['CMD', 'curl', '-f', 'http://localhost:8000/.well-known/agent-card.json'],
@@ -136,10 +137,36 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
             'environment': {
                 'FHIR_PORT': '8080'
             },
+            'healthcheck': {
+                'test': ['CMD', 'curl', '-f', 'http://localhost:8080/fhir/metadata'],
+                'interval': '10s',
+                'timeout': '5s',
+                'retries': 10,
+                'start_period': '60s'
+            },
             'platform': 'linux/amd64'
         }
-        # Note: No health check for FHIR server - it starts reliably
-        # Green agent will connect to it via environment variable
+
+        # MCP server for tool discovery (required for purple agents)
+        services['mcp_server'] = {
+            'image': 'hxwh/ai-pharmd-medagentbench-mcp:latest',
+            'ports': ['8002:8002'],
+            'environment': {
+                'MCP_FHIR_API_BASE': 'http://fhir-server:8080/fhir/',
+                'MCP_PORT': '8002'
+            },
+            'depends_on': {
+                'fhir-server': {'condition': 'service_healthy'}
+            },
+            'healthcheck': {
+                'test': ['CMD', 'curl', '-f', 'http://localhost:8002/health'],
+                'interval': '5s',
+                'timeout': '3s',
+                'retries': 10,
+                'start_period': '30s'
+            },
+            'platform': 'linux/amd64'
+        }
 
     # AgentBeats client service to orchestrate the evaluation
     # This service runs the client that coordinates between green and purple agents

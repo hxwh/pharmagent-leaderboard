@@ -6,6 +6,7 @@ Tracks assessment provenance and metadata for AgentBeats leaderboard.
 Based on AgentBeats leaderboard template requirements.
 """
 
+import argparse
 import json
 import sys
 from datetime import datetime
@@ -75,22 +76,34 @@ def record_assessment_provenance(
 
 def main():
     """Command-line interface for recording provenance."""
-    if len(sys.argv) != 5:
-        print("Usage: python record_provenance.py <assessment_id> <scenario.toml> <results.json> <output.json>")
-        print("")
-        print("Record provenance information for an assessment run.")
-        print("")
-        print("Arguments:")
-        print("  assessment_id    Unique identifier for the assessment")
-        print("  scenario.toml    Path to scenario configuration file")
-        print("  results.json     Path to assessment results file")
-        print("  output.json      Path to write provenance record")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description='Record provenance information for an assessment run.')
+    parser.add_argument('--compose', type=Path, help='Path to docker-compose.yml file (for workflow compatibility)')
+    parser.add_argument('--output', type=Path, required=True, help='Path to write provenance record')
+    parser.add_argument('assessment_id', nargs='?', help='Unique identifier for the assessment')
+    parser.add_argument('scenario_path', nargs='?', type=Path, help='Path to scenario configuration file')
+    parser.add_argument('results_path', nargs='?', type=Path, help='Path to assessment results file')
 
-    assessment_id = sys.argv[1]
-    scenario_path = Path(sys.argv[2])
-    results_path = Path(sys.argv[3])
-    output_path = Path(sys.argv[4])
+    args = parser.parse_args()
+
+    # Handle workflow-style arguments
+    if args.compose and not args.assessment_id:
+        # Workflow mode: extract info from compose file location
+        assessment_id = "agentbeats-workflow"
+        scenario_path = args.compose.parent / "scenario.toml"
+        results_path = args.output.parent / "results.json"
+        output_path = args.output
+    else:
+        # Direct mode: use positional arguments
+        if not all([args.assessment_id, args.scenario_path, args.results_path]):
+            print("Usage: python record_provenance.py [--compose docker-compose.yml --output output/provenance.json]")
+            print("   or: python record_provenance.py <assessment_id> <scenario.toml> <results.json> <output.json>")
+            print("")
+            print("Record provenance information for an assessment run.")
+            sys.exit(1)
+        assessment_id = args.assessment_id
+        scenario_path = args.scenario_path
+        results_path = args.results_path
+        output_path = args.output
 
     # Load scenario config
     try:
