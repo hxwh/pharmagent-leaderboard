@@ -138,11 +138,11 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
                 'FHIR_PORT': '8080'
             },
             'healthcheck': {
-                'test': ['CMD', 'curl', '-f', 'http://localhost:8080/fhir/metadata'],
+                'test': ['CMD-SHELL', 'wget -q --spider http://localhost:8080/fhir/metadata || exit 1'],
                 'interval': '10s',
-                'timeout': '5s',
-                'retries': 10,
-                'start_period': '60s'
+                'timeout': '10s',
+                'retries': 12,
+                'start_period': '90s'
             },
             'platform': 'linux/amd64'
         }
