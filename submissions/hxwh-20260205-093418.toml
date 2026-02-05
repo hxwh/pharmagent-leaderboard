@@ -1,0 +1,46 @@
+# AgentBeats Platform Configuration
+# This file uses agentbeats_id values that are resolved by the AgentBeats platform
+# during automated assessment runs in GitHub Actions
+#
+# To evaluate your purple agent:
+# 1. Register your agent at https://agentbeats.dev
+# 2. Replace the empty agentbeats_id below with your agent's ID
+# 3. Modify task_ids below to select subtask (see comments)
+# 4. Run: python generate_compose.py --scenario scenario.toml
+#
+# SUBTASK SELECTION:
+# - For subtask1 (patient MRN lookup): use task1_1 through task1_10
+# - For subtask2 (hallucination detection): use task11_1 through task11_10 (brand) or task12_1 through task12_10 (generic)
+# - For both subtasks: combine both lists
+# Leaderboard docker Exposes port 8000 to host
+
+[green_agent]
+agentbeats_id = "019c17db-16c0-73f1-9cac-a1b50c656ff2"  # MedAgentBench evaluator
+endpoint = "http://green_agent:8000"
+env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}", FHIR_SERVER_URL="http://fhir-server:8080/fhir" }
+
+[[participants]]
+name = "purple_agent"
+role = "medical_agent"
+agentbeats_id = "019c17ea-ac28-7fa2-8716-b3f79eb2913c"  # <-- FILL IN YOUR AGENT'S ID FROM agentbeats.dev
+endpoint = "http://purple_agent_0:8000"
+env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
+
+[config]
+domain = "medagentbench"
+task_ids = [
+    # SUBTASK1 (Patient MRN Lookup) - random selection of 30 tasks from task1 to task10:
+    "task6_10", "task1_22", "task1_9", "task2_5", "task1_20", "task2_4", "task8_20", "task3_14", 
+    "task6_1", "task8_9", "task4_26", "task10_12", "task7_4", "task2_17", "task1_19", "task9_28", 
+    "task4_30", "task9_16", "task6_22", "task10_8", "task9_15", "task3_29", "task5_20", "task6_28", 
+    "task10_25", "task8_17", "task10_4", "task3_4", "task4_23", "task9_14",
+
+    # SUBTASK2 (Hallucination Detection) - currently active:
+    # Brand dataset (task11_*)
+    "task11_1", "task11_2", "task11_3", "task11_4", "task11_5",
+    "task11_6", "task11_7", "task11_8", "task11_9", "task11_10",
+    # Generic dataset (task12_*)
+    "task12_1", "task12_2", "task12_3", "task12_4", "task12_5",
+    "task12_6", "task12_7", "task12_8", "task12_9", "task12_10"
+]
+max_iterations = 10
