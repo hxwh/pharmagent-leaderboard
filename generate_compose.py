@@ -143,6 +143,10 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
             },
             'platform': 'linux/amd64'
         }
+        # Add fhir_server dependency to green_agent
+        services['green_agent']['depends_on'] = {
+            'fhir_server': {'condition': 'service_healthy'}
+        }
 
     # AgentBeats client service to orchestrate the evaluation
     # This service runs the client that coordinates between green and purple agents
