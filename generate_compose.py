@@ -137,6 +137,13 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
             'environment': {
                 'FHIR_PORT': '8080'
             },
+            'healthcheck': {
+                'test': ['CMD', 'curl', '-f', 'http://localhost:8080/fhir/metadata'],
+                'interval': '10s',
+                'timeout': '5s',
+                'retries': 10,
+                'start_period': '60s'
+            },
             'platform': 'linux/amd64'
         }
 
@@ -151,7 +158,7 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
                 'MCP_PORT': '8002'
             },
             'depends_on': {
-                'fhir-server': {'condition': 'service_started'}
+                'fhir-server': {'condition': 'service_healthy'}
             },
             'healthcheck': {
                 'test': ['CMD', 'curl', '-f', 'http://localhost:8002/health'],
