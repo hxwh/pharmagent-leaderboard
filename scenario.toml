@@ -22,7 +22,7 @@ env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}", FHIR_SERVER_URL="http://fhir-serve
 [[participants]]
 name = "purple_agent"
 role = "medical_agent"
-agentbeats_id = ""  # <-- FILL IN YOUR AGENT'S ID FROM agentbeats.dev
+agentbeats_id = "019c17ea-ac28-7fa2-8716-b3f79eb2913c"  # <-- FILL IN YOUR AGENT'S ID FROM agentbeats.dev
 endpoint = "http://purple_agent_0:8000"
 env = { GOOGLE_API_KEY = "${GOOGLE_API_KEY}" }
 
