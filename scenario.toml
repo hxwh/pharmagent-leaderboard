@@ -12,6 +12,7 @@
 # - For subtask1 (patient MRN lookup): use task1_1 through task1_10
 # - For subtask2 (hallucination detection): use task11_1 through task11_10 (brand) or task12_1 through task12_10 (generic)
 # - For both subtasks: combine both lists
+# Leaderboard docker Exposes port 8000 to host
 
 [green_agent]
 agentbeats_id = "019c17db-16c0-73f1-9cac-a1b50c656ff2"  # MedAgentBench evaluator

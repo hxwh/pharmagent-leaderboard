@@ -130,6 +130,7 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
 
     # FHIR server for medical data (if needed)
     # Service name must be 'fhir-server' to match FHIR_SERVER_URL in scenario.toml
+    # Note: fhir-server uses distroless image (no shell/curl), so no healthcheck possible
     if scenario.get('config', {}).get('domain') == 'medagentbench':
         services['fhir-server'] = {
             'image': 'jyxsu6/medagentbench:latest',
@@ -137,35 +138,32 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
             'environment': {
                 'FHIR_PORT': '8080'
             },
-            'healthcheck': {
-                'test': ['CMD', 'curl', '-f', 'http://localhost:8080/fhir/metadata'],
-                'interval': '10s',
-                'timeout': '5s',
-                'retries': 10,
-                'start_period': '60s'
-            },
+            # No healthcheck - distroless image has no curl/wget
+            # FHIR server takes ~50s to start; mcp_server has built-in retry logic
             'platform': 'linux/amd64'
         }
 
         # MCP server for tool discovery (required for purple agents)
-        # Note: fhir-server uses distroless image (no shell), so no healthcheck possible
         # mcp_server has built-in retry logic to wait for FHIR server
         services['mcp_server'] = {
             'image': 'hxwh/ai-pharmd-medagentbench-mcp:latest',
             'ports': ['8002:8002'],
             'environment': {
                 'MCP_FHIR_API_BASE': 'http://fhir-server:8080/fhir/',
-                'MCP_PORT': '8002'
+                'MCP_PORT': '8002',
+                # Add startup delay to give FHIR server time to initialize
+                'MCP_STARTUP_DELAY': '60'
             },
             'depends_on': {
-                'fhir-server': {'condition': 'service_healthy'}
+                # Use service_started since fhir-server has no healthcheck (distroless image)
+                'fhir-server': {'condition': 'service_started'}
             },
             'healthcheck': {
                 'test': ['CMD', 'curl', '-f', 'http://localhost:8002/health'],
                 'interval': '5s',
                 'timeout': '3s',
-                'retries': 10,
-                'start_period': '30s'
+                'retries': 20,
+                'start_period': '90s'
             },
             'platform': 'linux/amd64'
         }
