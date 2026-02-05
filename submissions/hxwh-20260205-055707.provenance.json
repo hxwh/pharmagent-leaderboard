@@ -1,0 +1,98 @@
+{
+  "assessment_id": "agentbeats-workflow",
+  "timestamp": "2026-02-05T05:57:07.659644",
+  "agentbeats_ids": [
+    "019c17ea-ac28-7fa2-8716-b3f79eb2913c"
+  ],
+  "scenario_config": {
+    "green_agent": {
+      "agentbeats_id": "019c17db-16c0-73f1-9cac-a1b50c656ff2",
+      "endpoint": "http://green_agent:8000",
+      "env": {
+        "GOOGLE_API_KEY": "${GOOGLE_API_KEY}",
+        "FHIR_SERVER_URL": "http://fhir-server:8080/fhir"
+      }
+    },
+    "participants": [
+      {
+        "name": "purple_agent",
+        "role": "medical_agent",
+        "agentbeats_id": "019c17ea-ac28-7fa2-8716-b3f79eb2913c",
+        "endpoint": "http://purple_agent_0:8000",
+        "env": {
+          "GOOGLE_API_KEY": "${GOOGLE_API_KEY}"
+        }
+      }
+    ],
+    "config": {
+      "domain": "medagentbench",
+      "task_ids": [
+        "task6_10",
+        "task1_22",
+        "task1_9",
+        "task2_5",
+        "task1_20",
+        "task2_4",
+        "task8_20",
+        "task3_14",
+        "task6_1",
+        "task8_9",
+        "task4_26",
+        "task10_12",
+        "task7_4",
+        "task2_17",
+        "task1_19",
+        "task9_28",
+        "task4_30",
+        "task9_16",
+        "task6_22",
+        "task10_8",
+        "task9_15",
+        "task3_29",
+        "task5_20",
+        "task6_28",
+        "task10_25",
+        "task8_17",
+        "task10_4",
+        "task3_4",
+        "task4_23",
+        "task9_14",
+        "task11_1",
+        "task11_2",
+        "task11_3",
+        "task11_4",
+        "task11_5",
+        "task11_6",
+        "task11_7",
+        "task11_8",
+        "task11_9",
+        "task11_10",
+        "task12_1",
+        "task12_2",
+        "task12_3",
+        "task12_4",
+        "task12_5",
+        "task12_6",
+        "task12_7",
+        "task12_8",
+        "task12_9",
+        "task12_10"
+      ],
+      "max_iterations": 10
+    }
+  },
+  "results_summary": {
+    "total_participants": 1,
+    "results_file": "results.json",
+    "has_results": true
+  },
+  "metadata": {
+    "generator": "MedAgentBench Leaderboard",
+    "version": "1.0.0",
+    "benchmark": "MedAgentBench",
+    "subtasks": [
+      "subtask1",
+      "subtask2"
+    ]
+  }
+}
