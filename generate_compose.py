@@ -128,25 +128,18 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
         }
 
     # FHIR server for medical data (if needed)
+    # Service name must be 'fhir-server' to match FHIR_SERVER_URL in scenario.toml
     if scenario.get('config', {}).get('domain') == 'medagentbench':
-        services['fhir_server'] = {
+        services['fhir-server'] = {
             'image': 'jyxsu6/medagentbench:latest',
             'ports': ['8080:8080'],
             'environment': {
                 'FHIR_PORT': '8080'
             },
-            'healthcheck': {
-                'test': ['CMD', 'curl', '-f', 'http://localhost:8080/fhir/metadata'],
-                'interval': '30s',
-                'timeout': '10s',
-                'retries': 5
-            },
             'platform': 'linux/amd64'
         }
-        # Add fhir_server dependency to green_agent
-        services['green_agent']['depends_on'] = {
-            'fhir_server': {'condition': 'service_healthy'}
-        }
+        # Note: No health check for FHIR server - it starts reliably
+        # Green agent will connect to it via environment variable
 
     # AgentBeats client service to orchestrate the evaluation
     # This service runs the client that coordinates between green and purple agents
@@ -160,7 +153,7 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
     services['agentbeats-client'] = {
         'image': 'ghcr.io/agentbeats/agentbeats-client:v1.0.0',
         'volumes': [
-            './a2a-scenario.toml:/app/scenario.toml',
+            './scenario.toml:/app/scenario.toml',
             './output:/app/output'
         ],
         'command': ['scenario.toml', 'output/results.json'],
@@ -178,41 +171,6 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
     }
 
     return compose_config, services
-
-
-def generate_a2a_scenario(scenario: dict[str, Any]) -> str:
-    """Generate A2A scenario file for agentbeats client."""
-    participants = scenario.get('participants', [])
-
-    participant_lines = []
-    for i, p in enumerate(participants):
-        agentbeats_id = p.get('agentbeats_id', '').strip()
-        if agentbeats_id:  # Only include participants with valid agentbeats_id
-            lines = [
-                f"[[participants]]",
-                f"role = \"medical_agent\"",  # Green agent expects this specific role name
-                f"endpoint = \"http://purple_agent_{i}:8000\"",
-                f"agentbeats_id = \"{agentbeats_id}\"",
-            ]
-            participant_lines.append("\n".join(lines) + "\n")
-
-    config_section = scenario.get("config", {})
-    config_lines = []
-    if config_section:
-        import tomli_w
-        config_lines = [tomli_w.dumps({"config": config_section})]
-
-    return A2A_SCENARIO_TEMPLATE.format(
-        participants="\n".join(participant_lines),
-        config="\n".join(config_lines)
-    )
-
-
-A2A_SCENARIO_TEMPLATE = """[green_agent]
-endpoint = "http://green_agent:8000"
-
-{participants}
-{config}"""
 
 
 def save_compose_file(compose_config: Dict[str, Any], output_path: Path):
@@ -249,18 +207,8 @@ def main():
     compose_config, services = generate_compose_config(scenario)
     print("✓ Generated Docker Compose configuration")
 
-    # Generate A2A scenario
-    a2a_scenario = generate_a2a_scenario(scenario)
-    print("✓ Generated A2A scenario configuration")
-
     # Save compose file
     save_compose_file(compose_config, args.output)
-
-    # Save A2A scenario file
-    a2a_path = Path("a2a-scenario.toml")
-    with open(a2a_path, 'w') as f:
-        f.write(a2a_scenario)
-    print(f"✓ A2A scenario saved to {a2a_path}")
 
     # Validate that we have at least one service
     if not services:
