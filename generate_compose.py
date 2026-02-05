@@ -137,17 +137,12 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
             'environment': {
                 'FHIR_PORT': '8080'
             },
-            'healthcheck': {
-                'test': ['CMD-SHELL', 'wget -q --spider http://localhost:8080/fhir/metadata || exit 1'],
-                'interval': '10s',
-                'timeout': '10s',
-                'retries': 12,
-                'start_period': '90s'
-            },
             'platform': 'linux/amd64'
         }
 
         # MCP server for tool discovery (required for purple agents)
+        # Note: fhir-server uses distroless image (no shell), so no healthcheck possible
+        # mcp_server has built-in retry logic to wait for FHIR server
         services['mcp_server'] = {
             'image': 'hxwh/ai-pharmd-medagentbench-mcp:latest',
             'ports': ['8002:8002'],
@@ -156,7 +151,7 @@ def generate_compose_config(scenario: Dict[str, Any]) -> tuple[Dict[str, Any], D
                 'MCP_PORT': '8002'
             },
             'depends_on': {
-                'fhir-server': {'condition': 'service_healthy'}
+                'fhir-server': {'condition': 'service_started'}
             },
             'healthcheck': {
                 'test': ['CMD', 'curl', '-f', 'http://localhost:8002/health'],
