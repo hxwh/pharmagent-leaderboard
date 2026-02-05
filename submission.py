@@ -34,7 +34,7 @@ def process_agentify_results(results: Dict[str, Any]) -> Dict[str, Any]:
     """
     return {
         "total_tasks": results.get("total_tasks", 0),
-        "correct_count": results.get("correct_count", 0),
+        "correct_tasks": results.get("correct_tasks", results.get("correct_count", 0)),
         "pass_rate": results.get("pass_rate", 0.0)
     }
 
